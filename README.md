@@ -4,6 +4,12 @@
 
 A zero-dependency, single-file workshop mod manager CLI for Arma 3.
 
+Best suited for [LinuxGSM](https://linuxgsm.com/) or manual
+[Dedicated Server](https://community.bistudio.com/wiki/Arma_3:_Dedicated_Server)
+setups.
+Can be used with SteamCMD on Windows, although not preferred.
+Not recommended for Docker-based setups like [Pterodactyl](https://pterodactyl.io/).
+
 Originally, this script existed as a [gist](https://gist.github.com/thegamecracks/f02d59c1ba12a45c2a2518b48c48834f)
 for quite some time. However, its revisions page became very slow to load
 due to GitHub always rendering diffs for 40+ revisions simultaneously.
