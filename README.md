@@ -145,7 +145,7 @@ The workshop directory is where SteamCMD is expected to download mods to.
 Subcommands like `fix-meta` and `lowercase` directly affect mod files here.
 
 The mod directory is where mod symlinks are created. The `link-mods` subcommand
-will generate symlinks to each mod in the workshop directory, like @cba_a3.
+will generate symlinks to each mod in the workshop directory, like `@cba_a3`.
 
 The key directory is where key symlinks are created. The `link-keys` subcommand
 will generate symlinks to any keys in the mod directory, like cba_a3.bikey.
@@ -193,10 +193,10 @@ tgm.py remove --no-fix @cba_a3
 For the install, update, and remove commands, the following formats
 can be used to provide workshop mods:
 
-1. Bare IDs (450814997)
-2. Workshop URLs (https://steamcommunity.com/workshop/filedetails/?id=3489945148)
-3. Mod symlinks (@cba_a3)
-4. Text files (path/to/modpack.html)
+1. Bare IDs (`450814997`)
+2. Workshop URLs (`https://steamcommunity.com/workshop/filedetails/?id=3489945148`)
+3. Mod symlinks (`@cba_a3`)
+4. Text files (`path/to/modpack.html`)
 
 Multiple items can be specified at once in any format:
 
