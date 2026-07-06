@@ -467,7 +467,7 @@ class CheckUpdate(Command):
 
     @classmethod
     def from_config(cls, config: Config) -> Self:
-        args = config.args
+        # args = config.args
         return cls(config)
 
     def invoke(self) -> None:
