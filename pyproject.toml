@@ -38,3 +38,6 @@ dev = [
 Homepage = "https://github.com/thegamecracks/tgm"
 GitHub = "https://github.com/thegamecracks/tgm"
 Issues = "https://github.com/thegamecracks/tgm/issues"
+
+[tool.pytest]
+addopts = ["--import-mode=importlib"]
