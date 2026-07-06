@@ -43,6 +43,9 @@ as you go through the Usage section.
 
 ## Usage
 
+To get started, run `./tgm.py` or `python3 tgm.py` to view the command-line
+interface.
+
 tgm.py provides a self-contained `help` command to guide users through
 setup and usage. This may be removed in the future to consolidate
 documentation.
