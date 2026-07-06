@@ -4,6 +4,11 @@
 
 A zero-dependency, single-file workshop mod manager CLI for Arma 3.
 
+Originally, this script existed as a [gist](https://gist.github.com/thegamecracks/f02d59c1ba12a45c2a2518b48c48834f)
+for quite some time. However, its revisions page became very slow to load
+due to GitHub always rendering diffs for 40+ revisions simultaneously.
+As such, I've moved development to a proper repository here.
+
 ## Usage
 
 tgm.py provides a self-contained `help` command to guide users through
