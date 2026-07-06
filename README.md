@@ -73,8 +73,26 @@ tgm.py remove @cba_a3 3514182772
 
 ### Authentication
 
-For seamless integration with SteamCMD, we recommend that you log into SteamCMD
-first to cache your credentials:
+Since 2026-04-07, Bohemia Interactive enabled anonymous downloads of
+workshop items for Arma 3. As such, it is currently not required to log
+into SteamCMD with an account that owns Arma 3.
+
+To get started, specify the path to SteamCMD and your desired username login,
+using environment variables or CLI arguments:
+
+```sh
+# ~/.bashrc:
+export TGM_STEAMCMD=/path/to/steamcmd.sh
+export TGM_STEAM_USER=anonymous
+# Or CLI arguments:
+tgm.py --steamcmd /path/to/steamcmd.sh --steamcmd-user anonymous install ...
+INSTALL: 450814997  (CBA_A3)
+/path/to/steamcmd.sh +login anonymous +workshop_download_item 107410 450814997 +quit
+```
+
+If you want or need an authenticated user to download workshop items,
+log into SteamCMD to cache your credentials, then quit without logging out
+and set the username for tgm.py:
 
 ```sh
 $ ./steamcmd.sh
@@ -89,25 +107,12 @@ Waiting for user info...OK
 
 Steam>quit
 Unloading Steam API...OK
-```
 
-Afterwards, you can use arguments or environment variables to specify
-the path to SteamCMD and your username login:
-
-```sh
-# ~/.bashrc:
-export TGM_STEAMCMD=/path/to/steamcmd.sh
-export TGM_STEAM_USER=yoursteamuser
-# Or CLI arguments:
-tgm.py --steamcmd /path/to/steamcmd.sh --steamcmd-user yoursteamuser install ...
+$ export TGM_STEAM_USER=yoursteamuser
+$ ./tgm.py install ...
 INSTALL: 450814997  (CBA_A3)
-/path/to/steamcmd.sh +login yoursteamuser +workshop_download_item 107410 450814997 +quit
-```
-
-If you don't want tgm.py to run SteamCMD at all, pass the `-n/--dry-run` flag:
-
-```sh
-tgm.py install --dry-run ...
+/path/to/steamcmd.sh +login yoursteamuser ...
+# steamcmd will re-use your last credentials if possible
 ```
 
 ### Dry runs
