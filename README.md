@@ -26,7 +26,7 @@ Python 3.11 or higher is required.
 To download the latest release on Linux:
 
 ```sh
-curl -LsSOf https://raw.githubusercontent.com/thegamecracks/tgm/refs/heads/main/tgm.py && chmod u+x tgm.py
+curl -LsSOf https://github.com/thegamecracks/tgm/releases/latest/download/tgm.py && chmod u+x tgm.py
 ```
 
 <!--
