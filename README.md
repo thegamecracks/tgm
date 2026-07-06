@@ -137,9 +137,9 @@ actual run when side effects are known, such as symlinking newly installed mods.
 
 tgm.py has three important directories that it uses:
 
-1. The workshop directory (current: \[system-dependent\])
-2. The mod directory (current: \[system-dependent\])
-3. The key directory (current: \[system-dependent\])
+1. The workshop directory
+2. The mod directory
+3. The key directory
 
 The workshop directory is where SteamCMD is expected to download mods to.
 Subcommands like `fix-meta` and `lowercase` directly affect mod files here.
