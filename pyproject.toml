@@ -1,0 +1,37 @@
+# [build-system]
+# requires = ["uv-build~=0.11.26"]
+# build-backend = "uv_build"
+
+[project]
+name = "tgm.py"
+version = "1.0.1"
+description = "A zero-dependency, single-file workshop mod manager CLI for Arma 3."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "thegamecracks" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Private :: Do Not Upload",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[dependency-groups]
+dev = []
+
+[project.urls]
+# https://packaging.python.org/en/latest/specifications/well-known-project-urls/#well-known-labels
+Homepage = "https://github.com/thegamecracks/tgm"
+GitHub = "https://github.com/thegamecracks/tgm"
+Issues = "https://github.com/thegamecracks/tgm/issues"
