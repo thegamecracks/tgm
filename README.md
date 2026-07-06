@@ -173,7 +173,6 @@ The following fixes and utilities are defined:
 
 - `lowercase`:
   Lowercase PBO files to help mods load on Linux servers.
-  (obsolete since Arma 3 v2.22)
 
 Commands like install, update, and remove will automatically invoke these
 utilities after completion. To disable this, use the `--no-fix` flag:
