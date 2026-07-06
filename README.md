@@ -2,6 +2,7 @@
 
 [![](https://img.shields.io/github/actions/workflow/status/thegamecracks/tgm/type-check.yml?style=flat-square&logo=ty&label=types)](https://github.com/thegamecracks/tgm/actions/workflows/type-check.yml)
 [![](https://img.shields.io/github/actions/workflow/status/thegamecracks/tgm/ruff-check.yml?style=flat-square&logo=ruff&label=lints)](https://github.com/thegamecracks/tgm/actions/workflows/ruff-check.yml)
+[![](https://img.shields.io/github/actions/workflow/status/thegamecracks/tgm/pytest.yml?style=flat-square&logo=pytest&label=tests)](https://github.com/thegamecracks/tgm/actions/workflows/pytest.yml)
 [![](https://img.shields.io/github/actions/workflow/status/thegamecracks/tgm/ruff-format.yml?style=flat-square&logo=ruff&label=style)](https://github.com/thegamecracks/tgm/actions/workflows/ruff-format.yml)
 
 ![Example help message](/docs/images/help.png)
