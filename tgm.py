@@ -71,6 +71,8 @@ from typing import (
     overload,
 )
 
+__version__ = "1.0.0"
+
 HELP_DOCSTRINGS = {
     "summary": """
         ${prog} is written to help manage workshop mods specifically for Arma 3.
