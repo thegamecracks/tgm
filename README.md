@@ -15,6 +15,32 @@ for quite some time. However, its revisions page became very slow to load
 due to GitHub always rendering diffs for 40+ revisions simultaneously.
 As such, I've moved development to a proper repository here.
 
+## Installation
+
+Python 3.11 or higher is required.
+
+To download the latest release on Linux:
+
+```sh
+curl -LsSOf https://raw.githubusercontent.com/thegamecracks/tgm/refs/heads/main/tgm.py && chmod u+x tgm.py
+```
+
+<!--
+  -L: follow redirects
+  -s: silent operation, no progress bar
+  -S: show errors while silent
+  -O: derive output file from URL
+  -f: fail on (most) server errors
+-->
+
+Alternatively, you can go to the [Releases](https://github.com/thegamecracks/tgm/releases/latest)
+page and manually download tgm.py from the list of assets at the bottom.
+
+For LinuxGSM, the most convenient placement is next to your `arma3server`
+script, just outside of your `serverfiles/` directory. For other setups,
+you will likely need to configure your [Directories](#directories)
+as you go through the Usage section.
+
 ## Usage
 
 tgm.py provides a self-contained `help` command to guide users through
