@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 """Manage workshop mods for an Arma 3 server.
 
-See ${prog} help for more information.
+For more information:
+    https://github.com/thegamecracks/tgm
 
 """
 
@@ -72,156 +73,6 @@ from typing import (
 )
 
 __version__ = "1.0.1"
-
-HELP_DOCSTRINGS = {
-    "summary": """
-        ${prog} is written to help manage workshop mods specifically for Arma 3.
-        This can perform the following tasks, either in sequence or one at a time:
-            1. Fetch workshop mods and collections
-            2. Execute SteamCMD commands to install workshop mods
-            3. Symlink workshop mods and bikeys
-            4. Apply common fixes for Arma 3 mods
-
-        Example usage:
-            ${prog} install 450814997 3514182772 my_modpack.html
-            ${prog} i --dry-run https://steamcommunity.com/workshop/filedetails/?id=3489945148
-            ${prog} update --all
-            ${prog} details
-            ${prog} remove @cba_a3 3514182772
-
-        To see a help section, run ${prog} help <section>.
-        All available sections:
-            ${all_sections}
-
-        Next section: '${prog} help auth'
-    """,
-    "auth": """
-        For seamless integration with SteamCMD, we recommend that you log into SteamCMD
-        first to cache your credentials:
-            $ ./steamcmd.sh
-            Steam>login yoursteamuser
-            Cached credentials not found.
-
-            password: ****
-            Proceeding with login using username/password.
-            Logging in user 'yoursteamuser' [U:1:1234] to Steam Public...OK
-            Waiting for client config...OK
-            Waiting for user info...OK
-
-            Steam>quit
-            Unloading Steam API...OK
-
-        Afterwards, you can use arguments or environment variables to specify
-        the path to SteamCMD and your username login:
-            # ~/.bashrc:
-            export TGM_STEAMCMD=/path/to/steamcmd.sh
-            export TGM_STEAM_USER=yoursteamuser
-            # Or CLI arguments:
-            ${prog} --steamcmd /path/to/steamcmd.sh --steamcmd-user yoursteamuser install ...
-            INSTALL: 450814997  (CBA_A3)
-            /path/to/steamcmd.sh +login yoursteamuser +workshop_download_item 107410 450814997 +quit
-
-        If you don't want ${prog} to run SteamCMD at all, pass the -n/--dry-run flag:
-            ${prog} install --dry-run ...
-        Next section: '${prog} help dry'
-    """,
-    "dry": """
-        Most commands have side effects such as installing mods and symlinking files.
-        To test commands without making any changes, you can use the -n/--dry-run flags:
-
-            ${prog} install -n 450814997
-            ${prog} update -n --all
-            ${prog} remove -n https://steamcommunity.com/workshop/filedetails/?id=3489945148
-            ${prog} lowercase -n
-            ${prog} link-mods -n
-            ${prog} link-keys -n
-
-        This prints most operations that the command will perform, but will avoid
-        enacting filesystem changes. Some operations may not be printed until the
-        actual run when side effects are known, such as symlinking newly installed mods.
-
-        Next section: '${prog} help dir'
-    """,
-    "dir": """
-        ${prog} has three important directories that it uses:
-            1. The workshop directory (current: ${workshop_dir})
-            2. The mod directory (current: ${mod_dir})
-            3. The key directory (current: ${key_dir})
-
-        The workshop directory is where SteamCMD is expected to download mods to.
-        Subcommands like 'fix-meta' and 'lowercase' directly affect mod files here.
-
-        The mod directory is where mod symlinks are created. The 'link-mods' subcommand
-        will generate symlinks to each mod in the workshop directory, like @cba_a3.
-
-        The key directory is where key symlinks are created. The 'link-keys' subcommand
-        will generate symlinks to any keys in the mod directory, like cba_a3.bikey.
-
-        These directories can be customized using the following environment variables or options:
-            TGM_WORKSHOP_DIR= OR ${prog} --workshop-dir ...
-            TGM_MOD_DIR=      OR ${prog} --mod-dir ...
-            TGM_KEY_DIR=      OR ${prog} --key-dir ...
-
-        Next section: '${prog} help fixes'
-    """,
-    "fixes": """
-        The following fixes and utilities are defined:
-            ${prog} fix-acf
-                Fix SteamCMD ACF metadata when mods are removed.
-                This prevents SteamCMD from re-downloading removed workshop mods.
-            ${prog} fix-meta
-                Add publishedid= to meta.cpp files to assist in automatic
-                downloads when using the Arma 3 Launcher and verifySignatures=2.
-            ${prog} link-keys
-                Symlink .bikey files from the mod directory to the keys directory.
-            ${prog} link-mods
-                Symlink mods from the workshop directory to the mod directory.
-            ${prog} lowercase
-                Lowercase PBO files to help mods load on Linux servers.
-                (obsolete since Arma 3 v2.22)
-
-        Commands like install, update, and remove will automatically invoke these
-        utilities after completion. To disable this, use the --no-fix flag:
-            ${prog} install --no-fix 450814997
-            ${prog} update --all --no-fix
-            ${prog} remove --no-fix @cba_a3
-
-        Next section: '${prog} help items'
-    """,
-    "items": """
-        For the install, update, and remove commands, the following formats
-        can be used to provide workshop mods:
-            1. Bare IDs (450814997)
-            2. Workshop URLs (https://steamcommunity.com/workshop/filedetails/?id=3489945148)
-            3. Mod symlinks (@cba_a3)
-            4. Text files (path/to/modpack.html)
-
-        Multiple items can be specified at once in any format:
-            ${prog} install 450814997 my_modpack.html
-            ${prog} update my_modpack.html https://steamcommunity.com/workshop/filedetails/?id=3489945148
-            ${prog} remove @cba_a3 @warriors_haven_framework
-
-        Workshop collections are automatically expanded.
-
-        Items that cannot be fetched from the Steam Web API, such as unlisted or deleted mods,
-        will be ignored by default. To raise these as errors, use the --api-strict flag:
-            ${prog} --api-strict install ...
-
-        Due to limitations with the Steam Web API, dependencies listed on items
-        cannot be automatically fetched.
-
-        Next section: '${prog} help details'
-    """,
-    "details": """
-        To view a list of all installed mods, use the details subcommand:
-            ${prog} details
-
-        This will fetch every mod from the Steam Web API to show their real titles
-        and update timestamps. To skip this and only show the URLs and file paths,
-        use the --no-fetch flag:
-            ${prog} details --no-fetch
-    """,
-}
 
 
 @dataclass
@@ -763,11 +614,11 @@ class Help(Command):
             "help",
             description=clean_doc(cls.__doc__),
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            help="Show this program's documentation",
+            help="(Deprecated) Show this program's documentation",
         )
         parser.add_argument(
             "section",
-            choices=sorted(HELP_DOCSTRINGS),
+            # choices=sorted(HELP_DOCSTRINGS),
             default="summary",
             help="The section to show help for",
             nargs="?",
@@ -780,15 +631,13 @@ class Help(Command):
         return cls(config, section=args.section)
 
     def invoke(self) -> None:
-        message = HELP_DOCSTRINGS[self.section]
-        message = clean_doc(message)
-        message = Template(message).safe_substitute(
-            all_sections=", ".join(sorted(HELP_DOCSTRINGS)),
-            key_dir=self.config.key_dir,
-            mod_dir=self.config.mod_dir,
-            workshop_dir=self.config.workshop_dir,
-        )
-        print(message)
+        print(f"TGM_WORKSHOP_DIR='{self.config.workshop_dir}'")
+        print(f"TGM_MOD_DIR='{self.config.mod_dir}'")
+        print(f"TGM_KEY_DIR='{self.config.key_dir}'")
+        print()
+        print("Documentation has been moved to:")
+        print()
+        print("    https://github.com/thegamecracks/tgm")
 
 
 @dataclass(kw_only=True)
@@ -1580,7 +1429,7 @@ class SteamNotFoundError(CommandError):
         message = clean_doc(
             "SteamCMD could not be found in PATH.\n"
             "Please specify one of --steamcmd, TGM_STEAMCMD=, or --dry-run if applicable.\n"
-            "For more information, see '${prog} help auth'."
+            "For more information: https://github.com/thegamecracks/tgm#authentication"
         )
         super().__init__(message)
 
@@ -1592,7 +1441,7 @@ class UndefinedSteamUserError(CommandError):
         message = clean_doc(
             "No username login was given for SteamCMD.\n"
             "Please specify one of --steamcmd-user, TGM_STEAM_USER=, or --dry-run if applicable.\n"
-            "For more information, see '${prog} help auth'."
+            "For more information: https://github.com/thegamecracks/tgm#authentication"
         )
         super().__init__(message)
 
