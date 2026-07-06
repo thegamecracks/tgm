@@ -127,26 +127,21 @@ TGM_KEY_DIR=      OR tgm.py --key-dir ...
 
 The following fixes and utilities are defined:
 
-- tgm.py fix-acf
-
+- `fix-acf`:
   Fix SteamCMD ACF metadata when mods are removed.
   This prevents SteamCMD from re-downloading removed workshop mods.
 
-- tgm.py fix-meta
-
+- `fix-meta`:
   Add publishedid= to meta.cpp files to assist in automatic
-  downloads when using the Arma 3 Launcher and verifySignatures=2.
+  downloads when using the Arma 3 Launcher and `verifySignatures=2`.
 
-- tgm.py link-keys
-
+- `link-keys`:
   Symlink .bikey files from the mod directory to the keys directory.
 
-- tgm.py link-mods
-
+- `link-mods`:
   Symlink mods from the workshop directory to the mod directory.
 
-- tgm.py lowercase
-
+- `lowercase`:
   Lowercase PBO files to help mods load on Linux servers.
   (obsolete since Arma 3 v2.22)
 
