@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Sequence
 
 import pytest
+from pytest import MonkeyPatch
 
 from tgm import Command, Config, Undefined
 
@@ -80,3 +81,14 @@ def config(workshop: Workshop) -> Config:
         verbose=0,
         workshop_dir=workshop.workshop_dir,
     )
+
+
+# TODO: add tests for functions that use these libraries
+@pytest.fixture(autouse=True)
+def no_subprocess(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delattr("tgm.subprocess")
+
+
+@pytest.fixture(autouse=True)
+def no_urllib(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delattr("tgm.urllib")
