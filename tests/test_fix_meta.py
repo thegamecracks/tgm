@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from tgm import Config, FixMeta
 
 if TYPE_CHECKING:
-    from conftest import Workshop
+    from tests.conftest import Workshop
 
 
 def test_fix_meta(config: Config, workshop: Workshop) -> None:
