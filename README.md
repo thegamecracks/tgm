@@ -238,6 +238,29 @@ tgm.py details --no-fetch
 
 ![Example dry run install](/docs/images/install-dry-run.png)
 
+## Contributing
+
+This project uses [uv](https://docs.astral.sh/uv/) for project management.
+
+To set up your virtual environment:
+
+```sh
+$ uv sync
+```
+
+To run tests:
+
+```sh
+$ uv run -m pytest
+```
+
+To generate a coverage report:
+
+```sh
+$ uv run coverage run -m pytest
+$ uv run coverage html
+```
+
 ## License
 
 This project is written under the [MIT License](/LICENSE).
