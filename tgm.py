@@ -959,7 +959,7 @@ class LinkKeys(Command):
         if not addons.exists():
             return log.warning(
                 "Missing addons directory in mod: %s",
-                link.mod_path.relative_to(self.config.mod_dir),
+                link.mod_path.name,
             )
 
         pbos = list(addons.glob("*.pbo"))
@@ -1113,9 +1113,7 @@ class LinkMods(Command):
 
         link = self._maybe_enumerate_link(self.config.mod_dir / link_name)
 
-        print(
-            f"LINK: {link.name:50} <= {workshop_path.relative_to(self.config.workshop_dir)}"
-        )
+        print(f"LINK: {link.name:50} <= {workshop_path.name}")
 
         # https://github.com/thegamecracks/tgm/issues/2
         # We only need symlink trees on Linux where we may have to rename addons.
