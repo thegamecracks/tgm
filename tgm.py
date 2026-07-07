@@ -512,17 +512,6 @@ class FixACF(Command):
         with acf_path.open("w", encoding="utf-8") as f:
             acf_dump(f, acf)
 
-    def find_empty_mods(self) -> Iterator[Path]:
-        for mod in self.config.workshop_dir.iterdir():
-            if not mod.is_dir():
-                continue
-
-            for path in mod.rglob("*"):
-                if path.is_file():
-                    break
-            else:
-                yield mod
-
 
 @dataclass(kw_only=True)
 class FixMeta(Command):
