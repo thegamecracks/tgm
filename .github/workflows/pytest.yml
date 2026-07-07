@@ -3,11 +3,13 @@ name: Run tests
 on:
   push:
     paths:
+      - 'tests/'
       - '**.py'
       - 'pyproject.toml'
       - 'uv.lock'
   pull_request:
     paths:
+      - 'tests/'
       - '**.py'
       - 'pyproject.toml'
       - 'uv.lock'
