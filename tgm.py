@@ -565,11 +565,6 @@ class FixMeta(Command):
             content = meta.read_text("utf-8")
             self._fix_publishedid(meta, name, item_id, content)
 
-    def _get_item_id(self, mod: Path) -> int | None:
-        mod = mod.resolve()
-        with suppress(ValueError):
-            return int(mod.name)
-
     def _fix_publishedid(
         self,
         meta: Path,
