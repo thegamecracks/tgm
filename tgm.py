@@ -560,8 +560,8 @@ class FixMeta(Command):
         return cls(config, dry_run=args.dry_run, _item_ids=None)
 
     def invoke(self) -> None:
-        for mod, links in self.find_mod_links().items():
-            item_id = int(mod.name)
+        for workshop_path, links in self.find_mod_links().items():
+            item_id = int(workshop_path.name)
             if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
@@ -571,7 +571,7 @@ class FixMeta(Command):
                 else f"{item_id:<10}"
             )
 
-            meta = mod / "meta.cpp"
+            meta = workshop_path / "meta.cpp"
             if not meta.exists():
                 log.warning("Missing meta.cpp in %s", name)
                 continue
@@ -1056,7 +1056,7 @@ class LinkMods(Command):
 
         items = {}
         if self.fetch:
-            item_ids = [int(mod.name) for mod in missing]
+            item_ids = [int(workshop_path.name) for workshop_path in missing]
             items = self.get_published_file_details(item_ids)
             items = {item.id: item for item in items}
 
@@ -1067,7 +1067,11 @@ class LinkMods(Command):
     def invoke_with_items(self, items: Mapping[int, FileDetails | None]) -> None:
         mod_links = self.find_mod_links()
         missing = self._find_missing_links(mod_links)
-        missing = [mod for mod in missing if items.get(int(mod.name)) is not None]
+        missing = [
+            workshop_path
+            for workshop_path in missing
+            if items.get(int(workshop_path.name)) is not None
+        ]
 
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
@@ -1079,18 +1083,22 @@ class LinkMods(Command):
         items: Mapping[int, FileDetails | None],
     ) -> ModLinks:
         new_links: ModLinks = {}
-        for mod in missing:
-            id = int(mod.name)
+        for workshop_path in missing:
+            id = int(workshop_path.name)
             item = items.get(id)
-            new_links[mod] = [self._create_link(mod, item=item)]
+            new_links[workshop_path] = [self._create_link(workshop_path, item=item)]
         return new_links
 
     def _find_missing_links(self, mod_links: ModLinks) -> list[Path]:
-        return [mod for mod, links in mod_links.items() if len(links) < 1]
+        return [
+            workshop_path
+            for workshop_path, links in mod_links.items()
+            if len(links) < 1
+        ]
 
-    def _create_link(self, mod: Path, item: FileDetails | None) -> ModLink:
-        item_id = int(mod.name)
-        title = item.title if item is not None else mod.name
+    def _create_link(self, workshop_path: Path, item: FileDetails | None) -> ModLink:
+        item_id = int(workshop_path.name)
+        title = item.title if item is not None else workshop_path.name
         link_name = self._normalize_name(title)
 
         if self.prompt:
@@ -1101,11 +1109,13 @@ class LinkMods(Command):
             link_name = overwrite or link_name
 
         if not link_name:
-            raise CommandError(f"No name available for mod: {mod}")
+            raise CommandError(f"No name available for mod: {workshop_path}")
 
         link = self._maybe_enumerate_link(self.config.mod_dir / link_name)
 
-        print(f"LINK: {link.name:50} <= {mod.relative_to(self.config.workshop_dir)}")
+        print(
+            f"LINK: {link.name:50} <= {workshop_path.relative_to(self.config.workshop_dir)}"
+        )
 
         # https://github.com/thegamecracks/tgm/issues/2
         # We only need symlink trees on Linux where we may have to rename addons.
@@ -1117,10 +1127,10 @@ class LinkMods(Command):
         if self.dry_run:
             pass
         elif link_type == ModLinkType.DIRECTORY_SYMLINK:
-            assert mod.is_absolute()
-            link.symlink_to(mod, target_is_directory=True)
+            assert workshop_path.is_absolute()
+            link.symlink_to(workshop_path, target_is_directory=True)
         elif link_type == ModLinkType.SYMLINK_TREE:
-            self._create_symlink_tree(src=mod, dst=link, item_id=item_id)
+            self._create_symlink_tree(src=workshop_path, dst=link, item_id=item_id)
         else:
             assert_never(link_type)
 
@@ -1128,7 +1138,7 @@ class LinkMods(Command):
             type=link_type,
             item_id=item_id,
             mod_path=link,
-            workshop_path=mod,
+            workshop_path=workshop_path,
         )
 
     @staticmethod
@@ -1149,8 +1159,8 @@ class LinkMods(Command):
         return link
 
     def _merge_new_links(self, a: ModLinks, b: ModLinks) -> None:
-        for mod, b_links in b.items():
-            a_links = a.setdefault(mod, [])
+        for workshop_path, b_links in b.items():
+            a_links = a.setdefault(workshop_path, [])
             a_links.extend(b_links)
 
     def _create_symlink_tree(self, *, src: Path, dst: Path, item_id: int) -> None:
@@ -1308,14 +1318,14 @@ class Remove(Command):
 
         installed: dict[int, Path] = {}
         for item_id, item in items.items():
-            mod = self.config.workshop_dir / str(item_id)
-            if mod.is_dir():
-                installed[item_id] = mod
+            workshop_path = self.config.workshop_dir / str(item_id)
+            if workshop_path.is_dir():
+                installed[item_id] = workshop_path
 
         if not installed:
             return log.info("No workshop mods need to be removed")
 
-        for item_id, mod in installed.items():
+        for item_id, workshop_path in installed.items():
             item = items.get(item_id)
             if item is not None:
                 print(f"REMOVE: {item_id:<10} ({item.title})")
@@ -1323,7 +1333,7 @@ class Remove(Command):
                 print(f"REMOVE: {item_id:<10}")
 
             if not self.dry_run:
-                shutil.rmtree(mod)
+                shutil.rmtree(workshop_path)
 
         if self.fix:
             FixACF(self.config, dry_run=self.dry_run, _item_ids=installed).invoke()
@@ -2138,8 +2148,8 @@ def http_post(url: str, data: dict[str, object]) -> Iterator[HTTPResponse]:
 
 
 def item_modified_at(item_id: int, *, workshop_dir: Path) -> datetime.datetime:
-    mod = workshop_dir / str(item_id)
-    timestamp = int(mod.stat().st_mtime)
+    workshop_path = workshop_dir / str(item_id)
+    timestamp = int(workshop_path.stat().st_mtime)
     return datetime.datetime.fromtimestamp(timestamp).astimezone()
 
 
@@ -2148,11 +2158,11 @@ def list_installed_items(*, workshop_dir: Path) -> dict[int, Path]:
     # some heuristics to filter them out. Empty directories might have
     # been formerly installed mods that the Steam client didn't clean up.
     return {
-        int(mod.name): mod
-        for mod in workshop_dir.iterdir()
-        if any(mod.iterdir())
-        and not (mod / "composition.sqe").exists()
-        and not any(mod.glob("*_legacy.bin"))
+        int(workshop_path.name): workshop_path
+        for workshop_path in workshop_dir.iterdir()
+        if any(workshop_path.iterdir())
+        and not (workshop_path / "composition.sqe").exists()
+        and not any(workshop_path.glob("*_legacy.bin"))
     }
 
 
