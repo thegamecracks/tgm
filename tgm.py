@@ -53,10 +53,10 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from http.client import HTTPResponse
-from io import TextIOBase
 from pathlib import Path
 from string import Template
 from typing import (
+    IO,
     Any,
     ClassVar,
     Collection,
@@ -471,7 +471,7 @@ class FixACF(Command):
         return cls(config, dry_run=args.dry_run, _item_ids=())
 
     def invoke(self) -> None:
-        acf_path = self.config.workshop_dir.parent.parent / f"appworkshop_{APP_ID}.acf"
+        acf_path = self._get_acf_path()
         try:
             with acf_path.open(encoding="utf-8") as f:
                 acf = acf_load(f)
@@ -511,6 +511,10 @@ class FixACF(Command):
 
         with acf_path.open("w", encoding="utf-8") as f:
             acf_dump(f, acf)
+
+    def _get_acf_path(self) -> Path:
+        # FIXME: this goes outside workshop dir! must be monkeypatched for testing
+        return self.config.workshop_dir.parent.parent / f"appworkshop_{APP_ID}.acf"
 
 
 @dataclass(kw_only=True)
@@ -1438,7 +1442,7 @@ class UndefinedSteamUserError(CommandError):
 ACF = NewType("ACF", dict[str, Any])
 
 
-def acf_load(file: TextIOBase, /) -> ACF:
+def acf_load(file: IO[str], /) -> ACF:
     def raise_syntax(message: str) -> NoReturn:
         s = content[: m.start()]
         lineno = s.count("\n") + 1
@@ -1521,7 +1525,7 @@ def acf_load(file: TextIOBase, /) -> ACF:
     return stack[-1]
 
 
-def acf_dump(f: TextIOBase, acf: ACF, /, *, _depth: int = 0) -> None:
+def acf_dump(f: IO[str], acf: ACF, /, *, _depth: int = 0) -> None:
     def write(content: str) -> None:
         f.write("\t" * _depth)
         f.write(content)
