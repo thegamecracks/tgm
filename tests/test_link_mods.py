@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, assert_never, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
 
 import pytest
 from pytest import MonkeyPatch
@@ -25,7 +25,7 @@ class Symlink(File):
     target: Path | None = None
 
 
-Tree: TypeAlias = dict[str, File | dict[str, Any]]
+Tree: TypeAlias = "dict[str, File | Tree]"
 
 
 # FIXME: can tree be expressed more concisely? perhaps flattened?
@@ -51,7 +51,6 @@ def assert_file_structure(
             continue
 
         if isinstance(expected, dict):
-            expected = cast(Tree, expected)
             subtrees[path] = expected
 
     # Check for unexpected files in root
