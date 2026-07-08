@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
+from typing import TYPE_CHECKING, Any, TypeAlias, assert_never, cast
 
 import pytest
 from pytest import MonkeyPatch
@@ -51,7 +51,8 @@ def assert_file_structure(
             continue
 
         if isinstance(expected, dict):
-            subtrees[path] = expected  # type: ignore
+            expected = cast(Tree, expected)
+            subtrees[path] = expected
 
     # Check for unexpected files in root
     for path in root.iterdir():
