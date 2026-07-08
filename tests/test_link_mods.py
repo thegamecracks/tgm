@@ -79,7 +79,10 @@ def assert_file_structure(
 
 
 def _assert_path(
-    path: Path, expected: dict[str, Any] | File, *, _true_root: Path
+    path: Path,
+    expected: dict[str, Any] | File,
+    *,
+    _true_root: Path,
 ) -> str | None:
     p = path.relative_to(_true_root)
     if isinstance(expected, dict):
