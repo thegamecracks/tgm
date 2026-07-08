@@ -44,6 +44,12 @@ class Workshop:
                 bisign = Path(f"{filename}.{next_key}").with_suffix(".bisign")
                 addons_dir.joinpath(bisign).touch()
 
+        if keys:
+            keys_dir = workshop_path / "keys"
+            keys_dir.mkdir()
+            for key in keys:
+                keys_dir.joinpath(key).write_text(key)
+
         publishedid = item_id if is_updated else 0
         workshop_path.joinpath("meta.cpp").write_text(f"publishedid = {publishedid};")
         workshop_path.joinpath("mod.cpp").touch()
