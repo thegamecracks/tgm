@@ -126,6 +126,29 @@ def test_link_mods_directory_symlink(
     assert_file_structure(config.mod_dir, expected)
 
 
+def test_link_mods_directory_symlink_prune(
+    config: Config,
+    workshop: Workshop,
+    force_directory_symlink: None,
+) -> None:
+    expected: Tree
+    config.mod_dir.joinpath("@first_mod").symlink_to(config.workshop_dir / "1")
+    config.mod_dir.joinpath("@second_mod").symlink_to(config.workshop_dir / "2")
+
+    # --no-prune
+    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=False).invoke()
+    expected = {
+        "@first_mod": Symlink(),
+        "@second_mod": Symlink(),
+    }
+    assert_file_structure(config.mod_dir, expected)
+
+    # --prune
+    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    expected = {}
+    assert_file_structure(config.mod_dir, expected)
+
+
 def test_link_mods_symlink_tree(
     config: Config,
     workshop: Workshop,
