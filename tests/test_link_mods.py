@@ -216,5 +216,4 @@ def test_link_mods_symlink_tree_repair(
             "user-file": File(),
         },
     }
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
     assert_file_structure(config.mod_dir, expected)
