@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, assert_never, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
 
 import pytest
 from pytest import MonkeyPatch
@@ -147,4 +148,49 @@ def test_link_mods_symlink_tree(
             "tgm.metadata": File(),
         },
     }
+    assert_file_structure(config.mod_dir, expected)
+
+
+def test_link_mods_symlink_tree_repair(
+    config: Config,
+    workshop: Workshop,
+    force_symlink_tree: None,
+) -> None:
+    item_id = 1234567890
+    workshop.install_workshop_item(item_id)
+    mod_path = config.mod_dir / f"@{item_id}"
+
+    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+
+    # Add a broken symlink, must be removed
+    mod_path.joinpath("broken").symlink_to("broken-target")
+    # Remove some symlinks, must be restored
+    mod_path.joinpath("addons/testaddon.pbo").unlink()
+    mod_path.joinpath("meta.cpp").unlink()
+    # Remove a directory, must be restored
+    shutil.rmtree(mod_path / "keys")
+    # Add an unrelated file, must be kept
+    mod_path.joinpath("user-file").touch()
+    # Add an unrelated directory, must be removed
+    mod_path.joinpath("user-dir").mkdir()
+
+    # Re-running command should repair the symlink tree
+    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+
+    expected: Tree = {
+        f"@{item_id}": {
+            "addons": {
+                "testaddon.pbo": Symlink(),
+                "testaddon.pbo.TestKey.bisign": Symlink(),
+            },
+            "keys": {
+                "TestKey.bikey": Symlink(),
+            },
+            "meta.cpp": Symlink(),
+            "mod.cpp": Symlink(),
+            "tgm.metadata": File(),
+            "user-file": File(),
+        },
+    }
+    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
     assert_file_structure(config.mod_dir, expected)
