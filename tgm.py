@@ -1114,14 +1114,7 @@ class LinkMods(Command):
         link = self._maybe_enumerate_link(self.config.mod_dir / link_name)
 
         print(f"LINK: {link.name:50} <= {workshop_path.name}")
-
-        # https://github.com/thegamecracks/tgm/issues/2
-        # We only need symlink trees on Linux where we may have to rename addons.
-        # On Windows, we can use a simple symlink.
-        link_type = (
-            ModLinkType.DIRECTORY_SYMLINK if IS_WINDOWS else ModLinkType.SYMLINK_TREE
-        )
-
+        link_type = self._get_link_type()
         if self.dry_run:
             pass
         elif link_type == ModLinkType.DIRECTORY_SYMLINK:
@@ -1160,6 +1153,14 @@ class LinkMods(Command):
         for workshop_path, b_links in b.items():
             a_links = a.setdefault(workshop_path, [])
             a_links.extend(b_links)
+
+    def _get_link_type(self) -> ModLinkType:
+        # https://github.com/thegamecracks/tgm/issues/2
+        # We only need symlink trees on Linux where we may have to rename addons.
+        # On Windows, we can use a simple symlink.
+        if IS_WINDOWS:
+            return ModLinkType.DIRECTORY_SYMLINK
+        return ModLinkType.SYMLINK_TREE
 
     def _create_symlink_tree(self, *, src: Path, dst: Path, item_id: int) -> None:
         def copy(src: str, dest: str) -> None:
