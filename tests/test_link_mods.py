@@ -216,6 +216,9 @@ def test_link_mods_symlink_tree_repair(
     mod_path.joinpath("user-file").touch()
     # Add an unrelated directory, must be removed
     mod_path.joinpath("user-dir").mkdir()
+    # Add a conflicting file, must be kept
+    mod_path.joinpath("mod.cpp").unlink()
+    mod_path.joinpath("mod.cpp").touch()
 
     # Re-running command should repair the symlink tree
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
@@ -230,7 +233,7 @@ def test_link_mods_symlink_tree_repair(
         },
         ".tgm_symlink.json": File(),
         "meta.cpp": Symlink(),
-        "mod.cpp": Symlink(),
+        "mod.cpp": File(),
         "user-file": File(),
     }
     assert_symlink_tree_structure(config, item_id, expected)
