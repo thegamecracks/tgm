@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import functools
 import json
 import logging
 import os
@@ -1146,6 +1147,91 @@ class Remove(Command):
 
 
 @dataclass(kw_only=True)
+class SelfUpdate(Command):
+    """Update this script by downloading the latest release from GitHub."""
+
+    dry_run: bool
+
+    _download_url: ClassVar[str] = (
+        "https://github.com/thegamecracks/tgm/releases/latest/download/tgm.py"
+    )
+
+    @classmethod
+    def register(cls, subparsers: SubParser) -> None:
+        parser = subparsers.add_parser(
+            "self-update",
+            aliases=["su"],
+            description=clean_doc(cls.__doc__),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            help="",
+        )
+        parser.add_argument(
+            "-n",
+            "--dry-run",
+            action="store_true",
+            help="Check for a new release without updating",
+        )
+        parser.set_defaults(command=cls)
+
+    @classmethod
+    def from_config(cls, config: Config) -> Self:
+        args = config.args
+        return cls(
+            config,
+            dry_run=args.dry_run,
+        )
+
+    def invoke(self) -> None:
+        if "__file__" not in globals() or not (tgm_path := Path(__file__)).exists():
+            raise CommandError("Cannot self-update unless saved to a file")
+
+        log.info("Fetching latest release...")
+        current_version = Version.from_str(__version__)
+        latest_content = self.download_latest_release()
+        latest_version = self._extract_version(latest_content)
+
+        if latest_version.is_pre_release() or latest_version <= current_version:
+            return log.info(
+                "No update available (current: %s, latest: %s)",
+                current_version,
+                latest_version,
+            )
+
+        print(f"UPDATE: {tgm_path.name} ({current_version} -> {latest_version})")
+        if self.dry_run:
+            return
+
+        try:
+            self._save_to_file(tgm_path, latest_content)
+        except OSError as e:
+            raise CommandError(f"Failed to save to file: {e}") from e
+
+    def download_latest_release(self) -> str:
+        with http_get(self._download_url) as response:
+            if response.status == 404:
+                raise CommandError(
+                    "Could not download the latest release of tgm.py!\n"
+                    "Please see https://github.com/thegamecracks/tgm/releases "
+                    "for more information."
+                )
+            raise_for_status(response)
+            return response.read().decode()
+
+    def _extract_version(self, content: str) -> Version:
+        m = re.search(r"""__version__ = ['"]([^'"]+)['"]""", content)
+        if m is None:
+            raise CommandError(
+                "Failed to extract version from the latest release of tgm.py!\n"
+                "The release may be corrupted. Please try again later, or see "
+                "https://github.com/thegamecracks/tgm/releases for more information."
+            )
+        return Version.from_str(m[1])
+
+    def _save_to_file(self, path: Path, content: str) -> None:
+        path.write_text(content, encoding="utf-8")
+
+
+@dataclass(kw_only=True)
 class Update(Command):
     """Check and update workshop mods based on their modification time.
 
@@ -1396,6 +1482,59 @@ class Tag:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(name=data["tag"])
+
+
+@dataclass(kw_only=True)
+@functools.total_ordering
+class Version:
+    # https://packaging.python.org/en/latest/specifications/version-specifiers/#appendix-parsing-version-strings-with-regular-expressions
+    # HACK: being zero-dependency means we can't use the packaging library for this...
+    epoch: int = 0
+    major: int
+    minor: int
+    patch: int
+    suffix: str = ""
+    raw: str = field(default="", compare=False)
+
+    def __str__(self) -> str:
+        if self.raw:
+            return self.raw
+        elif self.epoch:
+            return f"{self.epoch}!{self.major}.{self.minor}.{self.patch}{self.suffix}"
+        return f"{self.major}.{self.minor}.{self.patch}{self.suffix}"
+
+    def __lt__(self, other: Self) -> bool:
+        # Approximate PEP 440 ordering, at least with pre-releases
+        s = (self.epoch, self.major, self.minor, self.patch)
+        o = (other.epoch, other.major, other.minor, other.patch)
+        if s < o:
+            return True
+        elif self.is_pre_release():
+            return not other.is_pre_release() or self.suffix < other.suffix
+        else:
+            return not other.is_pre_release() and self.suffix < other.suffix
+
+    @classmethod
+    def from_str(cls, s: str) -> Self:
+        m = re.match(
+            r"(?:(?P<epoch>\d+)!)?(?P<major>\d+).(?P<minor>\d+).(?P<patch>\d+)(?P<suffix>.*)",
+            s,
+        )
+        if m is None:
+            raise ValueError(f"Invalid PEP 440 version specifier: {s}")
+
+        return cls(
+            epoch=int(m["epoch"] or 0),
+            major=int(m["major"]),
+            minor=int(m["minor"]),
+            patch=int(m["patch"]),
+            suffix=m["suffix"],
+            raw=s,
+        )
+
+    def is_pre_release(self) -> bool:
+        m = re.match(r"[-_\.]?a|b|c|rc|alpha|beta|pre|preview", self.suffix)
+        return m is not None
 
 
 class CommandError(Exception):
