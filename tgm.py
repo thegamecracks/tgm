@@ -1679,7 +1679,7 @@ def get_published_file_details(
 def http_get(url: str) -> Iterator[HTTPResponse]:
     headers = {}
     request = urllib.request.Request(url, headers=headers)
-    log.debug("%s %s", request.method, request.full_url)
+    log.debug("%s %s", request.get_method(), request.full_url)
     with urllib.request.urlopen(request, timeout=5) as response:
         assert isinstance(response, HTTPResponse)
         yield response
@@ -1694,7 +1694,7 @@ def http_post(url: str, data: dict[str, object]) -> Iterator[HTTPResponse]:
         method="POST",
     )
 
-    log.debug("%s %s", request.method, request.full_url)
+    log.debug("%s %s", request.get_method(), request.full_url)
     with urllib.request.urlopen(request, timeout=5) as response:
         assert isinstance(response, HTTPResponse)
         yield response
