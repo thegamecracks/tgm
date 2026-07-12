@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 def test_fix_meta(
     config: Config,
     workshop: Workshop,
-    capsys: CaptureFixture,
+    capsys: CaptureFixture[str],
 ) -> None:
     item_id = 1234567890
     workshop_path = workshop.install_workshop_item(item_id, is_updated=False)
@@ -33,7 +33,7 @@ def test_fix_meta(
 def test_fix_meta_dry_run(
     config: Config,
     workshop: Workshop,
-    capsys: CaptureFixture,
+    capsys: CaptureFixture[str],
 ) -> None:
     item_id = 1234567890
     workshop_path = workshop.install_workshop_item(item_id, is_updated=False)
@@ -65,7 +65,7 @@ def test_fix_meta_file_not_found(
 def test_fix_meta_add_publishedid(
     config: Config,
     workshop: Workshop,
-    capsys: CaptureFixture,
+    capsys: CaptureFixture[str],
 ) -> None:
     item_id = 1234567890
     content = "foo = 123;\n"

@@ -156,7 +156,7 @@ def test_fix_acf_malformed(config: Config, acf: FakeACF) -> None:
         FixACF(config, dry_run=True, _item_ids=()).invoke()
 
 
-def test_fix_acf(config: Config, acf: FakeACF, capsys: CaptureFixture) -> None:
+def test_fix_acf(config: Config, acf: FakeACF, capsys: CaptureFixture[str]) -> None:
     """Test that FixACF removes uninstalled mods from the ACF cache."""
     content = ACF_FILES.joinpath("simple.acf").read_text()
     with acf.open("w") as f:
@@ -184,7 +184,11 @@ def test_fix_acf(config: Config, acf: FakeACF, capsys: CaptureFixture) -> None:
     assert err == ""
 
 
-def test_fix_acf_dry_run(config: Config, acf: FakeACF, capsys: CaptureFixture) -> None:
+def test_fix_acf_dry_run(
+    config: Config,
+    acf: FakeACF,
+    capsys: CaptureFixture[str],
+) -> None:
     """Test that FixACF adheres to the dry run mode."""
     content = ACF_FILES.joinpath("simple.acf").read_text()
     with acf.open("w") as f:
@@ -205,7 +209,7 @@ def test_fix_acf_installed(
     config: Config,
     acf: FakeACF,
     workshop: Workshop,
-    capsys: CaptureFixture,
+    capsys: CaptureFixture[str],
 ) -> None:
     """Test that FixACF does nothing when the cache matches the workshop directory."""
     content = ACF_FILES.joinpath("simple.acf").read_text()
@@ -228,7 +232,7 @@ def test_fix_acf_invoked_to_remove_item(
     config: Config,
     acf: FakeACF,
     workshop: Workshop,
-    capsys: CaptureFixture,
+    capsys: CaptureFixture[str],
 ) -> None:
     """Test that FixACF can remove items from cache even when the item is installed."""
     content = ACF_FILES.joinpath("simple.acf").read_text()
