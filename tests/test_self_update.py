@@ -147,8 +147,7 @@ def test_self_update_final_to_pre_release(
     SelfUpdate(config, dry_run=False).invoke()
 
     assert (
-        caplog.records[-1].getMessage()
-        == "No update available (current: 1.0.0, latest: 2.0.0a1)"
+        caplog.messages[-1] == "No update available (current: 1.0.0, latest: 2.0.0a1)"
     )
     out, err = capsys.readouterr()
     assert out == ""

@@ -144,7 +144,7 @@ def test_fix_acf_file_not_found(
     """Test that FixACF warns if the cache is missing."""
     acf.unlink()
     FixACF(config, dry_run=True, _item_ids=()).invoke()
-    assert caplog.records[0].getMessage() == "ACF metadata not found: <FakeACF>"
+    assert caplog.messages[0] == "ACF metadata not found: <FakeACF>"
 
 
 def test_fix_acf_malformed(config: Config, acf: FakeACF) -> None:

@@ -59,7 +59,7 @@ def test_fix_meta_file_not_found(
     workshop_path.joinpath("meta.cpp").unlink()
     FixMeta(config, dry_run=False).invoke()
 
-    assert caplog.records[0].getMessage() == f"Missing meta.cpp in {item_id}"
+    assert caplog.messages[0] == f"Missing meta.cpp in {item_id}"
 
 
 def test_fix_meta_add_publishedid(
