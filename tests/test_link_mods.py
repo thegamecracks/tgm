@@ -28,6 +28,21 @@ class Symlink(File):
 Tree: TypeAlias = "dict[str, File | Tree]"
 
 
+def assert_symlink_tree_structure(config: Config, item_id: int, tree: Tree) -> None:
+    def resolve_symlinks(root: Path, tree: Tree) -> None:
+        for name, expected in tree.items():
+            path = root / name
+            if isinstance(expected, Symlink) and expected.target is None:
+                expected.target = path
+            elif isinstance(expected, dict):
+                resolve_symlinks(path, expected)
+
+    workshop_path = config.workshop_dir / f"{item_id}"
+    mod_path = config.mod_dir / f"@{item_id}"  # assuming LinkMods(fetch=False)
+    resolve_symlinks(workshop_path, tree)
+    assert_file_structure(mod_path, tree)
+
+
 # FIXME: can tree be expressed more concisely? perhaps flattened?
 def assert_file_structure(
     root: Path,
@@ -90,7 +105,9 @@ def _assert_path(
     elif isinstance(expected, Symlink):
         if not path.is_symlink():
             return f"{p} must be a symlink"
-        elif expected.target is not None and path.resolve() != expected.target:
+        elif expected.target is None:
+            return f"{p} requires a symlink target (test needs to be fixed)"
+        elif path.resolve() != expected.target:
             return f"{p} must resolve to {expected.target}"
     elif isinstance(expected, File):
         if not path.is_file() or path.is_symlink():
@@ -123,9 +140,11 @@ def test_link_mods_directory_symlink(
     force_directory_symlink: None,
 ) -> None:
     item_id = 1234567890
-    workshop.install_workshop_item(item_id)
+    workshop_path = workshop.install_workshop_item(item_id)
+
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
-    expected: Tree = {f"@{item_id}": Symlink()}
+
+    expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
     assert_file_structure(config.mod_dir, expected)
 
 
@@ -141,8 +160,8 @@ def test_link_mods_directory_symlink_prune(
     # --no-prune
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=False).invoke()
     expected = {
-        "@first_mod": Symlink(),
-        "@second_mod": Symlink(),
+        "@first_mod": Symlink(target=config.workshop_dir / "1"),
+        "@second_mod": Symlink(target=config.workshop_dir / "2"),
     }
     assert_file_structure(config.mod_dir, expected)
 
@@ -161,20 +180,18 @@ def test_link_mods_symlink_tree(
     workshop.install_workshop_item(item_id)
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
     expected: Tree = {
-        f"@{item_id}": {
-            "addons": {
-                "testaddon.pbo": Symlink(),
-                "testaddon.pbo.TestKey.bisign": Symlink(),
-            },
-            "keys": {
-                "TestKey.bikey": Symlink(),
-            },
-            ".tgm_symlink.json": File(),
-            "meta.cpp": Symlink(),
-            "mod.cpp": Symlink(),
+        "addons": {
+            "testaddon.pbo": Symlink(),
+            "testaddon.pbo.TestKey.bisign": Symlink(),
         },
+        "keys": {
+            "TestKey.bikey": Symlink(),
+        },
+        ".tgm_symlink.json": File(),
+        "meta.cpp": Symlink(),
+        "mod.cpp": Symlink(),
     }
-    assert_file_structure(config.mod_dir, expected)
+    assert_symlink_tree_structure(config, item_id, expected)
 
 
 def test_link_mods_symlink_tree_repair(
@@ -204,18 +221,16 @@ def test_link_mods_symlink_tree_repair(
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
 
     expected: Tree = {
-        f"@{item_id}": {
-            "addons": {
-                "testaddon.pbo": Symlink(),
-                "testaddon.pbo.TestKey.bisign": Symlink(),
-            },
-            "keys": {
-                "TestKey.bikey": Symlink(),
-            },
-            ".tgm_symlink.json": File(),
-            "meta.cpp": Symlink(),
-            "mod.cpp": Symlink(),
-            "user-file": File(),
+        "addons": {
+            "testaddon.pbo": Symlink(),
+            "testaddon.pbo.TestKey.bisign": Symlink(),
         },
+        "keys": {
+            "TestKey.bikey": Symlink(),
+        },
+        ".tgm_symlink.json": File(),
+        "meta.cpp": Symlink(),
+        "mod.cpp": Symlink(),
+        "user-file": File(),
     }
-    assert_file_structure(config.mod_dir, expected)
+    assert_symlink_tree_structure(config, item_id, expected)
