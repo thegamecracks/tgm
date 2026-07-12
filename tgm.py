@@ -1169,7 +1169,7 @@ class LinkMods(Command):
         shutil.copytree(src, dst, copy_function=copy)
 
         metadata = SymlinkTreeMetadata(item_id=item_id)
-        metadata_path = dst / "tgm.metadata"
+        metadata_path = dst / ".tgm_symlink.json"
         metadata_path.write_text(metadata.to_json(), "utf-8")
 
     def _repair_symlink_trees(self, mod_links: ModLinks, *, dry_run: bool) -> None:
@@ -1614,7 +1614,7 @@ class FileDetails:
 
 @dataclass(kw_only=True)
 class SymlinkTreeMetadata:
-    """The data format used for tgm.metadata files in symlink trees."""
+    """The data format used for .tgm_symlink.json files in symlink trees."""
 
     item_id: int
 
@@ -1666,18 +1666,18 @@ class ModLink:
             )
 
         # Not a directory symlink, look for our symlink tree metadata
-        metadata_path = path / "tgm.metadata"
+        metadata_path = path / ".tgm_symlink.json"
 
         try:
             metadata = metadata_path.read_text("utf-8")
         except (OSError, UnicodeDecodeError) as e:
-            raise ModLinkError("Cannot read tgm.metadata file") from e
+            raise ModLinkError("Cannot read .tgm_symlink.json file") from e
 
         try:
             metadata = SymlinkTreeMetadata.from_json(metadata)
         except (KeyError, ValueError) as e:
-            # TODO: can we repair malformed tgm.metadata in LinkMods?
-            raise ModLinkError("tgm.metadata is malformed") from e
+            # TODO: can we repair malformed .tgm_symlink.json in LinkMods?
+            raise ModLinkError(".tgm_symlink.json is malformed") from e
 
         return cls(
             type=ModLinkType.SYMLINK_TREE,

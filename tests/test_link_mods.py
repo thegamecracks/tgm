@@ -169,9 +169,9 @@ def test_link_mods_symlink_tree(
             "keys": {
                 "TestKey.bikey": Symlink(),
             },
+            ".tgm_symlink.json": File(),
             "meta.cpp": Symlink(),
             "mod.cpp": Symlink(),
-            "tgm.metadata": File(),
         },
     }
     assert_file_structure(config.mod_dir, expected)
@@ -212,9 +212,9 @@ def test_link_mods_symlink_tree_repair(
             "keys": {
                 "TestKey.bikey": Symlink(),
             },
+            ".tgm_symlink.json": File(),
             "meta.cpp": Symlink(),
             "mod.cpp": Symlink(),
-            "tgm.metadata": File(),
             "user-file": File(),
         },
     }
