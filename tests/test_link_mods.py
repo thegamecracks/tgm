@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
 
 import pytest
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 
 from tgm import Config, LinkMods, ModLinkType
 
@@ -138,6 +138,7 @@ def test_link_mods_directory_symlink(
     config: Config,
     workshop: Workshop,
     force_directory_symlink: None,
+    caplog: LogCaptureFixture,
 ) -> None:
     item_id = 1234567890
     workshop_path = workshop.install_workshop_item(item_id)
@@ -146,12 +147,14 @@ def test_link_mods_directory_symlink(
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
     assert_file_structure(config.mod_dir, expected)
+    assert not caplog.messages
 
 
 def test_link_mods_directory_symlink_prune(
     config: Config,
     workshop: Workshop,
     force_directory_symlink: None,
+    caplog: LogCaptureFixture,
 ) -> None:
     expected: Tree
     config.mod_dir.joinpath("@first_mod").symlink_to(config.workshop_dir / "1")
@@ -164,17 +167,21 @@ def test_link_mods_directory_symlink_prune(
         "@second_mod": Symlink(target=config.workshop_dir / "2"),
     }
     assert_file_structure(config.mod_dir, expected)
+    assert not caplog.messages
 
     # --prune
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
     expected = {}
     assert_file_structure(config.mod_dir, expected)
+    assert caplog.messages[0] == "Removing broken link: @first_mod"
+    assert caplog.messages[1] == "Removing broken link: @second_mod"
 
 
 def test_link_mods_symlink_tree(
     config: Config,
     workshop: Workshop,
     force_symlink_tree: None,
+    caplog: LogCaptureFixture,
 ) -> None:
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
@@ -192,12 +199,14 @@ def test_link_mods_symlink_tree(
         "mod.cpp": Symlink(),
     }
     assert_symlink_tree_structure(config, item_id, expected)
+    assert not caplog.messages
 
 
 def test_link_mods_symlink_tree_repair(
     config: Config,
     workshop: Workshop,
     force_symlink_tree: None,
+    caplog: LogCaptureFixture,
 ) -> None:
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
@@ -237,3 +246,9 @@ def test_link_mods_symlink_tree_repair(
         "user-file": File(),
     }
     assert_symlink_tree_structure(config, item_id, expected)
+
+    assert caplog.messages[0].startswith("Removing empty directory:")
+    assert caplog.messages[0].endswith("user-dir")
+    assert caplog.messages[1] == "Removing broken link: broken"
+    assert caplog.messages[2].startswith("File conflict, cannot create symlink")
+    assert caplog.messages[2].endswith("mod.cpp")
