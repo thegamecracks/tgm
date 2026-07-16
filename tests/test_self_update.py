@@ -37,8 +37,9 @@ def test_version_is_pre_release() -> None:
     assert Version.from_str("1.0.0rc1").is_pre_release()
 
 
-def test_version_ordering() -> None:
-    pairs = [
+@pytest.mark.parametrize(
+    "old,new",
+    [
         ("0.1.0", "1.0.0"),
         ("1.0.0", "1.0.1"),
         ("1.0.1", "1.1.0"),
@@ -49,13 +50,14 @@ def test_version_ordering() -> None:
         ("1.0.0", "1.0.0.post1"),
         ("1.0.0.post1", "1.0.0.post2"),
         # ("1.0.0.post9", "1.0.0.post10"),
-    ]
-    for old, new in pairs:
-        old = Version.from_str(old)
-        new = Version.from_str(new)
-        assert old != new
-        assert old < new
-        assert new > old
+    ],
+)
+def test_version_ordering(old: str, new: str) -> None:
+    old_version = Version.from_str(old)
+    new_version = Version.from_str(new)
+    assert old_version != new_version
+    assert old_version < new_version
+    assert new_version > old_version
 
 
 class FakeRelease:
