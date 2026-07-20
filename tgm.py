@@ -625,8 +625,9 @@ class Help(Command):
         print(f"TGM_KEY_DIR='{self.config.key_dir}'")
         print()
         print("Documentation has been moved to:")
-        print()
         print("    https://github.com/thegamecracks/tgm")
+        print()
+        print("For command help, use tgm.py [command] -h/--help.")
 
 
 @dataclass(kw_only=True)
