@@ -1163,7 +1163,7 @@ class SelfUpdate(Command):
             aliases=["su"],
             description=clean_doc(cls.__doc__),
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            help="",
+            help="Update this script from GitHub",
         )
         parser.add_argument(
             "-n",
