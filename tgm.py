@@ -126,7 +126,7 @@ def main() -> None:
             config.invoke()
         except CommandError as e:
             if config.verbose:
-                log.exception(e)
+                log.exception(e)  # noqa: TRY401
             else:
                 log.error("%s\n(To show full traceback, use -v/--verbose)", e)
             sys.exit(1)
@@ -137,7 +137,7 @@ def main() -> None:
         print()
         sys.exit(130)
     except Exception as e:
-        log.exception(e)
+        log.exception(e)  # noqa: TRY401
         sys.exit(1)
 
 
@@ -483,11 +483,11 @@ class FixACF(Command):
 
         all_items: set[str] = set(acf_installed) | set(acf_details)
         installed = list_installed_items(workshop_dir=self.config.workshop_dir)
-        invalid_items = all_items - set(str(item_id) for item_id in installed)
+        invalid_items = all_items - {str(item_id) for item_id in installed}
 
         if self._item_ids:
             # Invoked by another command
-            invalid_items |= set(str(item_id) for item_id in self._item_ids)
+            invalid_items |= {str(item_id) for item_id in self._item_ids}
 
         if not invalid_items:
             return log.info("Nothing to fix in ACF metadata")
@@ -1715,7 +1715,7 @@ def expand_collection_file_details(
     if collections:
         item_ids = [item.id for item in collections]
         expanded = get_collection_details(item_ids, ignore_errors=ignore_errors)
-        expanded = set(id for item in expanded for id in item.children)
+        expanded = {id for item in expanded for id in item.children}
         expanded -= {item.id for item in ret}
         expanded = get_published_file_details(expanded, ignore_errors=ignore_errors)
         ret.extend(expanded)
