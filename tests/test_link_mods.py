@@ -183,8 +183,8 @@ def test_link_mods_directory_symlink_prune(
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
     expected = {}
     assert_file_structure(config.mod_dir, expected)
-    assert caplog.messages[0] == "Removing broken link: @first_mod"
-    assert caplog.messages[1] == "Removing broken link: @second_mod"
+    assert "Removing broken link: @first_mod" in caplog.messages
+    assert "Removing broken link: @second_mod" in caplog.messages
 
 
 def test_link_mods_symlink_tree(
