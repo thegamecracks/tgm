@@ -29,8 +29,8 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "coverage~=7.15",
-    "pytest~=9.1",
+    "coverage>=7.15",
+    "pytest>=9.1",
 ]
 
 [project.urls]
