@@ -116,30 +116,38 @@ def _assert_path(
         assert_never(expected)
 
 
-@pytest.fixture
-def force_directory_symlink(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        LinkMods,
-        "_get_link_type",
-        lambda self: ModLinkType.DIRECTORY_SYMLINK,
-    )
+class SymlinkController:
+    def __init__(self, monkeypatch: MonkeyPatch) -> None:
+        self.monkeypatch = monkeypatch
+
+    def force_directory_symlinks(self) -> None:
+        self.monkeypatch.setattr(
+            LinkMods,
+            "_get_link_type",
+            lambda self: ModLinkType.DIRECTORY_SYMLINK,
+        )
+
+    def force_symlink_trees(self) -> None:
+        self.monkeypatch.setattr(
+            LinkMods,
+            "_get_link_type",
+            lambda self: ModLinkType.SYMLINK_TREE,
+        )
 
 
 @pytest.fixture
-def force_symlink_tree(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        LinkMods,
-        "_get_link_type",
-        lambda self: ModLinkType.SYMLINK_TREE,
-    )
+def symlink_controller(monkeypatch: MonkeyPatch) -> SymlinkController:
+    return SymlinkController(monkeypatch)
 
 
 def test_link_mods_directory_symlink(
     config: Config,
     workshop: Workshop,
-    force_directory_symlink: None,
+    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
+    symlink_controller.force_directory_symlinks()
+
     item_id = 1234567890
     workshop_path = workshop.install_workshop_item(item_id)
 
@@ -153,9 +161,11 @@ def test_link_mods_directory_symlink(
 def test_link_mods_directory_symlink_prune(
     config: Config,
     workshop: Workshop,
-    force_directory_symlink: None,
+    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
+    symlink_controller.force_directory_symlinks()
+
     expected: Tree
     config.mod_dir.joinpath("@first_mod").symlink_to(config.workshop_dir / "1")
     config.mod_dir.joinpath("@second_mod").symlink_to(config.workshop_dir / "2")
@@ -180,9 +190,11 @@ def test_link_mods_directory_symlink_prune(
 def test_link_mods_symlink_tree(
     config: Config,
     workshop: Workshop,
-    force_symlink_tree: None,
+    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
+    symlink_controller.force_symlink_trees()
+
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
     LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
@@ -205,9 +217,11 @@ def test_link_mods_symlink_tree(
 def test_link_mods_symlink_tree_repair(
     config: Config,
     workshop: Workshop,
-    force_symlink_tree: None,
+    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
+    symlink_controller.force_symlink_trees()
+
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
     mod_path = config.mod_dir / f"@{item_id}"
