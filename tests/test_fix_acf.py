@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import importlib.resources
+from collections.abc import Iterator
 from contextlib import contextmanager
 from io import StringIO
-from typing import IO, TYPE_CHECKING, Iterator
+from typing import IO, TYPE_CHECKING
 
 import pytest
 from pytest import CaptureFixture, LogCaptureFixture, MonkeyPatch

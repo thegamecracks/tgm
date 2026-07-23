@@ -51,6 +51,7 @@ import textwrap
 import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from http.client import HTTPResponse
@@ -60,15 +61,10 @@ from typing import (
     IO,
     Any,
     ClassVar,
-    Collection,
-    Iterable,
-    Iterator,
     Literal,
-    Mapping,
     NewType,
     NoReturn,
     Self,
-    Type,
     TypeAlias,
     overload,
 )
@@ -148,7 +144,7 @@ def main() -> None:
 @dataclass(kw_only=True)
 class Config:
     args: argparse.Namespace
-    command_cls: Type[Command]
+    command_cls: type[Command]
     ignore_api_errors: bool
     key_dir: Path
     mod_dir: Path
@@ -256,7 +252,7 @@ class Config:
 class Command(ABC):
     config: Config
 
-    ALL_COMMANDS: ClassVar[list[Type[Command]]] = []
+    ALL_COMMANDS: ClassVar[list[type[Command]]] = []
 
     def __init_subclass__(cls) -> None:
         Command.ALL_COMMANDS.append(cls)
@@ -782,9 +778,7 @@ class LowercaseAddons(Command):
         expected = mod / "addons"
 
         for path in mod.iterdir():
-            if not path.is_dir():
-                continue
-            elif path.name.lower() != expected.name:
+            if not path.is_dir() or path.name.lower() != expected.name:
                 continue
             elif path == expected:
                 return expected
