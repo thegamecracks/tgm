@@ -1081,7 +1081,7 @@ class LinkMods(Command):
     def _create_links(
         self,
         missing: Collection[Path],
-        items: Mapping[int, FileDetails | None],
+        items: Mapping[int, FileDetails],
     ) -> ModLinks:
         new_links: ModLinks = {}
         for workshop_path in missing:
