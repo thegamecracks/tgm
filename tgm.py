@@ -708,7 +708,11 @@ class Install(Command):
             log.warning("-a/--all is deprecated, use --force instead")
             skip_installed = False
 
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             dry_run=args.dry_run,
@@ -1386,7 +1390,11 @@ class Remove(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             dry_run=args.dry_run,
@@ -1575,7 +1583,11 @@ class Update(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             all=args.all,
@@ -2266,7 +2278,7 @@ def natural_bytes(n: int) -> str:
     return f"{n / 1e9:.3f}GB"
 
 
-def parse_item_id(s: str, *, mod_dir: Path) -> int:
+def parse_item_id(s: str, *, mod_dir: Path, workshop_dir: Path) -> int:
     try:
         return int(s)
     except ValueError:
@@ -2278,22 +2290,27 @@ def parse_item_id(s: str, *, mod_dir: Path) -> int:
     else:
         log.debug("Could not parse %r as workshop URL", s)
 
-    link = mod_dir / s
-    mod = link.resolve()
     try:
-        return int(mod.name)
-    except ValueError:
-        log.debug("Could not parse %r as symlink", s)
+        link = ModLink.from_path(mod_dir / s, workshop_dir=workshop_dir)
+    except ModLinkError:
+        log.debug("Could not parse %r as symlink", s, exc_info=True)
+    else:
+        return link.item_id
 
     raise ValueError(f"Cannot parse item ID: {s}")
 
 
-def parse_item_ids(args: Iterable[str], *, mod_dir: Path) -> list[int]:
+def parse_item_ids(
+    args: Iterable[str],
+    *,
+    mod_dir: Path,
+    workshop_dir: Path,
+) -> list[int]:
     item_ids: dict[int, None] = {}  # Retain insertion order
 
     for x in args:
         with suppress(ValueError):
-            item_id = parse_item_id(x, mod_dir=mod_dir)
+            item_id = parse_item_id(x, mod_dir=mod_dir, workshop_dir=workshop_dir)
             item_ids[item_id] = None
             continue
 
