@@ -43,7 +43,7 @@ class FakeACF:
             self.file.truncate()
             yield self.file
         else:
-            raise RuntimeError(f"Unsupported mode: {mode}")
+            raise RuntimeError(f"Unsupported mode: {mode}")  # pragma: no cover
 
     def unlink(self) -> None:
         self._deleted = True

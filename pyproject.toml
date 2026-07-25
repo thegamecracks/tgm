@@ -38,3 +38,10 @@ dev = [
 Homepage = "https://github.com/thegamecracks/tgm"
 GitHub = "https://github.com/thegamecracks/tgm"
 Issues = "https://github.com/thegamecracks/tgm/issues"
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "assert_never",
+    "if __name__ == .__main__.:",
+]

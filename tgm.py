@@ -117,7 +117,7 @@ SubParser: TypeAlias = "argparse._SubParsersAction[argparse.ArgumentParser]"
 log = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     try:
         config = Config.parse_args()
         config.configure_logging()
@@ -142,7 +142,7 @@ def main() -> None:
 
 
 @dataclass(kw_only=True)
-class Config:
+class Config:  # pragma: no cover
     args: argparse.Namespace
     command_cls: type[Command]
     ignore_api_errors: bool
@@ -305,7 +305,7 @@ class CheckUpdate(Command):
     """
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "check-update",
             aliases=["cu"],
@@ -338,7 +338,7 @@ class Details(Command):
     fetch: bool
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "details",
             aliases=["dt"],
@@ -446,7 +446,7 @@ class FixACF(Command):
     _item_ids: Collection[int] | None
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "fix-acf",
             aliases=["fa"],
@@ -527,7 +527,7 @@ class FixMeta(Command):
     _item_ids: Collection[int] | None
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "fix-meta",
             aliases=["fm"],
@@ -598,7 +598,7 @@ class Help(Command):
     section: str
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "help",
             description=clean_doc(cls.__doc__),
@@ -645,7 +645,7 @@ class Install(Command):
     skip_installed: bool
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "install",
             aliases=["i"],
@@ -755,7 +755,7 @@ class LowercaseAddons(Command):
     _item_ids: Collection[int] | None
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "lowercase",
             aliases=["lw"],
@@ -831,7 +831,7 @@ class LinkKeys(Command):
     _item_ids: Collection[int] | None
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "link-keys",
             aliases=["lk"],
@@ -949,7 +949,7 @@ class LinkMods(Command):
     prune: bool
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "link-mods",
             aliases=["lm"],
@@ -1086,7 +1086,7 @@ class Remove(Command):
     item_ids: list[int]
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "remove",
             aliases=["rm"],
@@ -1179,7 +1179,7 @@ class SelfUpdate(Command):
     )
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "self-update",
             aliases=["su"],
@@ -1269,7 +1269,7 @@ class Update(Command):
     item_ids: list[int]
 
     @classmethod
-    def register(cls, subparsers: SubParser) -> None:
+    def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
         parser = subparsers.add_parser(
             "update",
             aliases=["u"],
