@@ -744,6 +744,7 @@ class Install(Command):
                 dry_run=self.dry_run,
                 fetch=False,
                 link_type=None,
+                migrate=True,
                 prompt=False,
                 prune=False,
                 _items={item.id: item for item in items},
@@ -998,6 +999,7 @@ class LinkMods(Command):
     dry_run: bool
     fetch: bool
     link_type: ModLinkType | None
+    migrate: bool
     prompt: bool
     prune: bool
     _items: Mapping[int, FileDetails] | None
@@ -1024,6 +1026,11 @@ class LinkMods(Command):
             help="Fetch workshop items to suggest titles (default: %(default)s)",
         )
         parser.add_argument(
+            "--migrate",
+            choices=("directory-symlinks", "symlink-trees"),
+            help="Migrate mod links to the given format (potentially destructive!)",
+        )
+        parser.add_argument(
             "--prompt",
             action=argparse.BooleanOptionalAction,
             default=False,
@@ -1040,11 +1047,26 @@ class LinkMods(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
+
+        if args.migrate is None:
+            # By default, use the platform's preferred link type
+            link_type = None
+            migrate = False
+        elif args.migrate == "directory-symlinks":
+            link_type = ModLinkType.DIRECTORY_SYMLINK
+            migrate = True
+        elif args.migrate == "symlink-trees":
+            link_type = ModLinkType.SYMLINK_TREE
+            migrate = True
+        else:
+            raise ValueError(f"Unexpected value for --migrate: {args.migrate!r}")
+
         return cls(
             config,
             dry_run=args.dry_run,
             fetch=args.fetch,
-            link_type=None,
+            link_type=link_type,
+            migrate=migrate,
             prompt=args.prompt,
             prune=args.prune,
             _items=None,
@@ -1054,7 +1076,7 @@ class LinkMods(Command):
         if self.prune:
             remove_broken_links(self.config.mod_dir, dry_run=self.dry_run)
 
-        mod_links = self.find_mod_links()
+        mod_links = self._maybe_migrate_links()
         missing = self._find_missing_links(mod_links)
         if self._items is not None:
             # Invoked by another command, skip logging if all links are present
@@ -1077,6 +1099,76 @@ class LinkMods(Command):
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
         self._repair_symlink_trees(mod_links)
+
+    def _maybe_migrate_links(self) -> ModLinks:
+        mod_links = self.find_mod_links()
+
+        if not self.migrate:
+            self._maybe_suggest_migration(mod_links)
+        elif self._items is None:
+            # Migrate everything
+            self._remove_links_in_place(mod_links)
+        else:
+            # Partial migration, check the rest for suggestions
+            self._remove_links_in_place(mod_links)
+            self._maybe_suggest_migration(mod_links)
+
+        return mod_links
+
+    def _remove_links_in_place(self, mod_links: ModLinks) -> None:
+        preferred = self._get_link_type()
+        for links in mod_links.values():
+            to_remove: list[int] = []
+            for i, link in enumerate(links):
+                if link.type == preferred:
+                    continue
+                elif self._items is not None and link.item_id not in self._items:
+                    # Invoked by another command, only migrate the requested items
+                    continue
+
+                print("REMOVE:", link.mod_path.name)
+                to_remove.append(i)
+
+                if self.dry_run:
+                    pass
+                elif link.type == ModLinkType.DIRECTORY_SYMLINK:
+                    link.mod_path.unlink()
+                elif link.type == ModLinkType.SYMLINK_TREE:
+                    shutil.rmtree(link.mod_path)
+                else:
+                    assert_never(link.type)
+
+            for i in reversed(to_remove):
+                del links[i]
+
+    def _maybe_suggest_migration(self, mod_links: ModLinks) -> None:
+        preferred = self._get_link_type()
+        outdated = [
+            link
+            for links in mod_links.values()
+            for link in links
+            if link.type != preferred
+        ]
+        if len(outdated) < 1:
+            return
+
+        for link in outdated:
+            log.debug("Outdated link type: %s", link.mod_path.name)
+
+        if preferred == ModLinkType.DIRECTORY_SYMLINK:
+            choice = "directory-symlinks"
+        elif preferred == ModLinkType.SYMLINK_TREE:
+            choice = "symlink-trees"
+        else:
+            assert_never(preferred)
+
+        log.warning(
+            "%d linked mods are in an un-preferred format for for your platform.\n"
+            "Consider replacing them with 'link-mods --migrate %s' "
+            "(potentially destructive!)",
+            len(outdated),
+            choice,
+        )
 
     def _create_links(
         self,
@@ -1532,6 +1624,7 @@ class Update(Command):
                 dry_run=self.dry_run,
                 fetch=False,
                 link_type=None,
+                migrate=True,
                 prompt=False,
                 prune=False,
                 _items={item.id: item for item in outdated},

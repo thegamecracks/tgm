@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import datetime
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias, assert_never
 
-from pytest import LogCaptureFixture
+from pytest import CaptureFixture, LogCaptureFixture
 
-from tgm import Config, LinkMods, ModLinkType
+from tgm import Config, FileDetails, LinkMods, ModLinkType
 
 if TYPE_CHECKING:
     from tests.conftest import Workshop
@@ -28,6 +29,12 @@ Tree: TypeAlias = "dict[str, File | Tree]"
 
 
 def assert_symlink_tree_structure(config: Config, item_id: int, tree: Tree) -> None:
+    resolve_symlink_tree(config, item_id, tree)
+    mod_path = config.mod_dir / f"@{item_id}"  # assuming LinkMods(fetch=False)
+    assert_file_structure(mod_path, tree)
+
+
+def resolve_symlink_tree(config: Config, item_id: int, tree: Tree) -> Tree:
     def resolve_symlinks(root: Path, tree: Tree) -> None:
         for name, expected in tree.items():
             path = root / name
@@ -37,9 +44,8 @@ def assert_symlink_tree_structure(config: Config, item_id: int, tree: Tree) -> N
                 resolve_symlinks(path, expected)
 
     workshop_path = config.workshop_dir / f"{item_id}"
-    mod_path = config.mod_dir / f"@{item_id}"  # assuming LinkMods(fetch=False)
     resolve_symlinks(workshop_path, tree)
-    assert_file_structure(mod_path, tree)
+    return tree
 
 
 # FIXME: can tree be expressed more concisely? perhaps flattened?
@@ -115,6 +121,34 @@ def _assert_path(
         assert_never(expected)
 
 
+def create_default_symlink_tree() -> Tree:
+    return {
+        "addons": {
+            "testaddon.pbo": Symlink(),
+            "testaddon.pbo.TestKey.bisign": Symlink(),
+        },
+        "keys": {
+            "TestKey.bikey": Symlink(),
+        },
+        ".tgm_symlink.json": File(),
+        "meta.cpp": Symlink(),
+        "mod.cpp": Symlink(),
+    }
+
+
+def create_file_details(item_id: int) -> FileDetails:
+    now = datetime.datetime.now().astimezone()
+    return FileDetails(
+        id=item_id,
+        title=f"Item {item_id}",
+        description="",
+        created_at=now,
+        updated_at=now,
+        size=0,
+        tags=[],
+    )
+
+
 def test_link_mods_directory_symlink(
     config: Config,
     workshop: Workshop,
@@ -128,6 +162,7 @@ def test_link_mods_directory_symlink(
         dry_run=False,
         fetch=False,
         link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
         prompt=False,
         prune=True,
         _items=None,
@@ -153,6 +188,7 @@ def test_link_mods_directory_symlink_prune(
         dry_run=False,
         fetch=False,
         link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
         prompt=False,
         prune=False,
         _items=None,
@@ -170,6 +206,7 @@ def test_link_mods_directory_symlink_prune(
         dry_run=False,
         fetch=False,
         link_type=None,
+        migrate=False,
         prompt=False,
         prune=True,
         _items=None,
@@ -192,22 +229,12 @@ def test_link_mods_symlink_tree(
         dry_run=False,
         fetch=False,
         link_type=ModLinkType.SYMLINK_TREE,
+        migrate=False,
         prompt=False,
         prune=True,
         _items=None,
     ).invoke()
-    expected: Tree = {
-        "addons": {
-            "testaddon.pbo": Symlink(),
-            "testaddon.pbo.TestKey.bisign": Symlink(),
-        },
-        "keys": {
-            "TestKey.bikey": Symlink(),
-        },
-        ".tgm_symlink.json": File(),
-        "meta.cpp": Symlink(),
-        "mod.cpp": Symlink(),
-    }
+    expected = create_default_symlink_tree()
     assert_symlink_tree_structure(config, item_id, expected)
     assert not caplog.messages
 
@@ -226,6 +253,7 @@ def test_link_mods_symlink_tree_repair(
         dry_run=False,
         fetch=False,
         link_type=ModLinkType.SYMLINK_TREE,
+        migrate=False,
         prompt=False,
         prune=True,
         _items=None,
@@ -252,28 +280,368 @@ def test_link_mods_symlink_tree_repair(
         dry_run=False,
         fetch=False,
         link_type=None,
+        migrate=False,
         prompt=False,
         prune=True,
         _items=None,
     ).invoke()
 
-    expected: Tree = {
-        "addons": {
-            "testaddon.pbo": Symlink(),
-            "testaddon.pbo.TestKey.bisign": Symlink(),
-        },
-        "keys": {
-            "TestKey.bikey": Symlink(),
-        },
-        ".tgm_symlink.json": File(),
-        "meta.cpp": Symlink(),
-        "mod.cpp": File(),
-        "user-file": File(),
-    }
+    expected = create_default_symlink_tree()
+    expected["mod.cpp"] = File()
+    expected["user-file"] = File()
     assert_symlink_tree_structure(config, item_id, expected)
 
-    assert caplog.messages[0].startswith("Removing empty directory:")
-    assert caplog.messages[0].endswith("user-dir")
-    assert caplog.messages[1] == "Removing broken link: broken"
-    assert caplog.messages[2].startswith("File conflict, cannot create symlink")
-    assert caplog.messages[2].endswith("mod.cpp")
+    assert caplog.messages[-4] == (
+        "1 linked mods are in an un-preferred format for for your platform.\n"
+        "Consider replacing them with 'link-mods --migrate directory-symlinks' (potentially destructive!)"
+    )
+    assert caplog.messages[-3].startswith("Removing empty directory:")
+    assert caplog.messages[-3].endswith("user-dir")
+    assert caplog.messages[-2] == "Removing broken link: broken"
+    assert caplog.messages[-1].startswith("File conflict, cannot create symlink")
+    assert caplog.messages[-1].endswith("mod.cpp")
+
+
+def test_link_mods_suggest_migration_to_directory_symlinks(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+) -> None:
+    item_id = 1234567890
+    workshop.install_workshop_item(item_id)
+
+    # Initial symlink tree
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected = create_default_symlink_tree()
+    assert_symlink_tree_structure(config, item_id, expected)
+    assert not caplog.messages
+
+    # Switch to directory symlinks
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    assert_symlink_tree_structure(config, item_id, expected)
+    assert caplog.messages[0] == (
+        "1 linked mods are in an un-preferred format for for your platform.\n"
+        "Consider replacing them with 'link-mods --migrate directory-symlinks' (potentially destructive!)"
+    )
+
+
+def test_link_mods_suggest_migration_to_symlink_trees(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+) -> None:
+    item_id = 1234567890
+    workshop_path = workshop.install_workshop_item(item_id)
+
+    # Initial directory symlink
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
+    assert_file_structure(config.mod_dir, expected)
+    assert not caplog.messages
+
+    # Switch to symlink trees
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    assert_file_structure(config.mod_dir, expected)
+    assert caplog.messages[0] == (
+        "1 linked mods are in an un-preferred format for for your platform.\n"
+        "Consider replacing them with 'link-mods --migrate symlink-trees' (potentially destructive!)"
+    )
+
+
+def test_link_mods_migrate_to_directory_symlinks(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+    capsys: CaptureFixture[str],
+) -> None:
+    item_id = 1234567890
+    workshop_path = workshop.install_workshop_item(item_id)
+
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected = create_default_symlink_tree()
+    assert_symlink_tree_structure(config, item_id, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert (
+        out
+        == "LINK: @1234567890                                        <= 1234567890\n"
+    )
+    assert err == ""
+
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=True,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
+    assert_file_structure(config.mod_dir, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert out == (
+        "REMOVE: @1234567890\n"
+        "LINK: @1234567890                                        <= 1234567890\n"
+    )
+    assert err == ""
+
+
+def test_link_mods_migrate_to_symlink_trees(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+    capsys: CaptureFixture[str],
+) -> None:
+    item_id = 1234567890
+    workshop_path = workshop.install_workshop_item(item_id)
+
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
+    assert_file_structure(config.mod_dir, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert (
+        out
+        == "LINK: @1234567890                                        <= 1234567890\n"
+    )
+    assert err == ""
+
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=True,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected = create_default_symlink_tree()
+    assert_symlink_tree_structure(config, item_id, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert out == (
+        "REMOVE: @1234567890\n"
+        "LINK: @1234567890                                        <= 1234567890\n"
+    )
+    assert err == ""
+
+
+def test_link_mods_migrate_dry_run(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+    capsys: CaptureFixture[str],
+) -> None:
+    item_id = 1234567890
+    workshop_path = workshop.install_workshop_item(item_id)
+
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
+    assert_file_structure(config.mod_dir, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert (
+        out
+        == "LINK: @1234567890                                        <= 1234567890\n"
+    )
+    assert err == ""
+
+    LinkMods(
+        config,
+        dry_run=True,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=True,
+        prompt=False,
+        prune=True,
+        _items=None,
+    ).invoke()
+
+    assert_file_structure(config.mod_dir, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert out == (
+        "REMOVE: @1234567890\n"
+        "LINK: @1234567890_2                                      <= 1234567890\n"
+        # FIXME: don't enumerate new symlink when old symlink is meant to be deleted
+    )
+    assert err == ""
+
+
+def test_link_mods_migrate_noop(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+    capsys: CaptureFixture[str],
+) -> None:
+    workshop.install_workshop_item(1)
+
+    for _ in range(2):
+        LinkMods(
+            config,
+            dry_run=False,
+            fetch=False,
+            link_type=ModLinkType.DIRECTORY_SYMLINK,
+            migrate=True,
+            prompt=False,
+            prune=True,
+            _items=None,
+        ).invoke()
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert out == "LINK: @1                                                 <= 1\n"
+    assert err == ""
+
+
+def test_link_mods_migrate_items_only(
+    config: Config,
+    workshop: Workshop,
+    caplog: LogCaptureFixture,
+    capsys: CaptureFixture[str],
+) -> None:
+    class Item(NamedTuple):
+        details: FileDetails
+        workshop_path: Path
+
+    installed = {
+        1: Item(create_file_details(1), workshop.install_workshop_item(1)),
+        2: Item(create_file_details(2), workshop.install_workshop_item(2)),
+    }
+
+    # User installs workshop mods with tgm.py 1.0.1
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        migrate=False,
+        prompt=False,
+        prune=True,
+        _items={item_id: item.details for item_id, item in installed.items()},
+    ).invoke()
+
+    expected: Tree = {
+        "@item_1": Symlink(target=installed[1].workshop_path),
+        "@item_2": Symlink(target=installed[2].workshop_path),
+    }
+    assert_file_structure(config.mod_dir, expected)
+
+    assert not caplog.messages
+    out, err = capsys.readouterr()
+    assert out == (
+        "LINK: @item_1                                            <= 1\n"
+        "LINK: @item_2                                            <= 2\n"
+    )
+    assert err == ""
+
+    # User upgrades to tgm.py 2.0.0 and updates @item_2
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        migrate=True,
+        prompt=False,
+        prune=True,
+        _items={2: installed[2].details},
+    ).invoke()
+
+    expected: Tree = {
+        "@item_1": Symlink(target=installed[1].workshop_path),
+        "@item_2": resolve_symlink_tree(config, 2, create_default_symlink_tree()),
+    }
+    assert_file_structure(config.mod_dir, expected)
+
+    assert caplog.messages[0] == (
+        "1 linked mods are in an un-preferred format for for your platform.\n"
+        "Consider replacing them with 'link-mods --migrate symlink-trees' (potentially destructive!)"
+    )
+    out, err = capsys.readouterr()
+    assert out == (
+        "REMOVE: @item_2\n"
+        "LINK: @item_2                                            <= 2\n"
+    )
+    assert err == ""
