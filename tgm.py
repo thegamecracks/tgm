@@ -443,7 +443,7 @@ class FixACF(Command):
     """
 
     dry_run: bool
-    _item_ids: Collection[int]
+    _item_ids: Collection[int] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -465,7 +465,7 @@ class FixACF(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run, _item_ids=())
+        return cls(config, dry_run=args.dry_run, _item_ids=None)
 
     def invoke(self) -> None:
         acf_path = self._get_acf_path()
@@ -485,7 +485,7 @@ class FixACF(Command):
         installed = list_installed_items(workshop_dir=self.config.workshop_dir)
         invalid_items = all_items - {str(item_id) for item_id in installed}
 
-        if self._item_ids:
+        if self._item_ids is not None:
             # Invoked by another command
             invalid_items |= {str(item_id) for item_id in self._item_ids}
 
@@ -524,7 +524,7 @@ class FixMeta(Command):
     """
 
     dry_run: bool
-    _item_ids: Collection[int]
+    _item_ids: Collection[int] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -546,12 +546,12 @@ class FixMeta(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run, _item_ids=())
+        return cls(config, dry_run=args.dry_run, _item_ids=None)
 
     def invoke(self) -> None:
         for mod, link in self.find_mod_links().items():
             item_id = int(mod.name)
-            if self._item_ids and item_id not in self._item_ids:
+            if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
             name = (
@@ -752,7 +752,7 @@ class LowercaseAddons(Command):
     """Lowercase addons in workshop mods for Arma 3 Linux compatibility."""
 
     dry_run: bool
-    _item_ids: Collection[int]
+    _item_ids: Collection[int] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -774,14 +774,14 @@ class LowercaseAddons(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run, _item_ids=())
+        return cls(config, dry_run=args.dry_run, _item_ids=None)
 
     def invoke(self) -> None:
         if IS_WINDOWS:
             return log.info("Skipping addon lowercasing on Windows")
 
         for item_id, mod in self.list_installed_items().items():
-            if self._item_ids and item_id not in self._item_ids:
+            if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
             addons = self._find_addons_directory(mod)
@@ -828,7 +828,7 @@ class LinkKeys(Command):
 
     dry_run: bool
     prune: bool
-    _item_ids: Collection[int]
+    _item_ids: Collection[int] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -856,7 +856,7 @@ class LinkKeys(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run, prune=args.prune, _item_ids=())
+        return cls(config, dry_run=args.dry_run, prune=args.prune, _item_ids=None)
 
     def invoke(self) -> None:
         if self.prune:
@@ -873,7 +873,7 @@ class LinkKeys(Command):
             item_id = int(mod.name)
             if link is None:
                 continue
-            if self._item_ids and item_id not in self._item_ids:
+            if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
             self._find_keys_in_mod(keys, link)
