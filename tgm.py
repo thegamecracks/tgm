@@ -746,7 +746,8 @@ class Install(Command):
                 link_type=None,
                 prompt=False,
                 prune=False,
-            ).invoke_with_items({item.id: item for item in items})
+                _items={item.id: item for item in items},
+            ).invoke()
             LowercaseAddons(
                 self.config,
                 dry_run=self.dry_run,
@@ -999,6 +1000,7 @@ class LinkMods(Command):
     link_type: ModLinkType | None
     prompt: bool
     prune: bool
+    _items: Mapping[int, FileDetails] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
@@ -1045,6 +1047,7 @@ class LinkMods(Command):
             link_type=None,
             prompt=args.prompt,
             prune=args.prune,
+            _items=None,
         )
 
     def invoke(self) -> None:
@@ -1053,28 +1056,23 @@ class LinkMods(Command):
 
         mod_links = self.find_mod_links()
         missing = self._find_missing_links(mod_links)
-        if not missing:
+        if self._items is not None:
+            # Invoked by another command, skip logging if all links are present
+            items = self._items
+            missing = [
+                workshop_path
+                for workshop_path in missing
+                if items.get(int(workshop_path.name)) is not None
+            ]
+        elif not missing:
             self._repair_symlink_trees(mod_links)
             return log.info("No workshop mods need to be linked")
-
-        items = {}
-        if self.fetch:
+        elif self.fetch:
             item_ids = [int(workshop_path.name) for workshop_path in missing]
             items = self.get_published_file_details(item_ids)
             items = {item.id: item for item in items}
-
-        new_links = self._create_links(missing, items)
-        self._merge_new_links(mod_links, new_links)
-        self._repair_symlink_trees(mod_links)
-
-    def invoke_with_items(self, items: Mapping[int, FileDetails | None]) -> None:
-        mod_links = self.find_mod_links()
-        missing = self._find_missing_links(mod_links)
-        missing = [
-            workshop_path
-            for workshop_path in missing
-            if items.get(int(workshop_path.name)) is not None
-        ]
+        else:
+            items = {}
 
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
@@ -1536,7 +1534,8 @@ class Update(Command):
                 link_type=None,
                 prompt=False,
                 prune=False,
-            ).invoke_with_items({item.id: item for item in outdated})
+                _items={item.id: item for item in outdated},
+            ).invoke()
             LowercaseAddons(
                 self.config,
                 dry_run=self.dry_run,

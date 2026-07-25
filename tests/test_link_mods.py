@@ -130,6 +130,7 @@ def test_link_mods_directory_symlink(
         link_type=ModLinkType.DIRECTORY_SYMLINK,
         prompt=False,
         prune=True,
+        _items=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -154,6 +155,7 @@ def test_link_mods_directory_symlink_prune(
         link_type=ModLinkType.DIRECTORY_SYMLINK,
         prompt=False,
         prune=False,
+        _items=None,
     ).invoke()
     expected = {
         "@first_mod": Symlink(target=config.workshop_dir / "1"),
@@ -170,6 +172,7 @@ def test_link_mods_directory_symlink_prune(
         link_type=None,
         prompt=False,
         prune=True,
+        _items=None,
     ).invoke()
     expected = {}
     assert_file_structure(config.mod_dir, expected)
@@ -191,6 +194,7 @@ def test_link_mods_symlink_tree(
         link_type=ModLinkType.SYMLINK_TREE,
         prompt=False,
         prune=True,
+        _items=None,
     ).invoke()
     expected: Tree = {
         "addons": {
@@ -224,6 +228,7 @@ def test_link_mods_symlink_tree_repair(
         link_type=ModLinkType.SYMLINK_TREE,
         prompt=False,
         prune=True,
+        _items=None,
     ).invoke()
 
     # Add a broken symlink, must be removed
@@ -249,6 +254,7 @@ def test_link_mods_symlink_tree_repair(
         link_type=None,
         prompt=False,
         prune=True,
+        _items=None,
     ).invoke()
 
     expected: Tree = {
