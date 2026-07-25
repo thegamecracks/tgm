@@ -1054,7 +1054,7 @@ class LinkMods(Command):
         mod_links = self.find_mod_links()
         missing = self._find_missing_links(mod_links)
         if not missing:
-            self._repair_symlink_trees(mod_links, dry_run=self.dry_run)
+            self._repair_symlink_trees(mod_links)
             return log.info("No workshop mods need to be linked")
 
         items = {}
@@ -1065,7 +1065,7 @@ class LinkMods(Command):
 
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
-        self._repair_symlink_trees(mod_links, dry_run=self.dry_run)
+        self._repair_symlink_trees(mod_links)
 
     def invoke_with_items(self, items: Mapping[int, FileDetails | None]) -> None:
         mod_links = self.find_mod_links()
@@ -1078,7 +1078,7 @@ class LinkMods(Command):
 
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
-        self._repair_symlink_trees(mod_links, dry_run=self.dry_run)
+        self._repair_symlink_trees(mod_links)
 
     def _create_links(
         self,
@@ -1176,7 +1176,7 @@ class LinkMods(Command):
         metadata_path = dst / ".tgm_symlink.json"
         metadata_path.write_text(metadata.to_json(), "utf-8")
 
-    def _repair_symlink_trees(self, mod_links: ModLinks, *, dry_run: bool) -> None:
+    def _repair_symlink_trees(self, mod_links: ModLinks) -> None:
         trees = [
             link
             for links in mod_links.values()
@@ -1184,16 +1184,16 @@ class LinkMods(Command):
             if link.type == ModLinkType.SYMLINK_TREE
         ]
         for link in trees:
-            self._repair_symlink_tree(link, dry_run=dry_run)
+            self._repair_symlink_tree(link)
 
-    def _repair_symlink_tree(self, link: ModLink, *, dry_run: bool) -> None:
+    def _repair_symlink_tree(self, link: ModLink) -> None:
         """Recursively remove any broken symlinks and restore missing symlinks."""
         assert link.type == ModLinkType.SYMLINK_TREE
 
         for dirpath, _, _ in os.walk(link.mod_path, topdown=False):
             dst_dir = Path(dirpath)
-            remove_broken_links(dst_dir, dry_run=dry_run)
-            self._remove_empty_dir(dst_dir, dry_run=dry_run)
+            remove_broken_links(dst_dir, dry_run=self.dry_run)
+            self._remove_empty_dir(dst_dir)
 
         # TODO: replace with Path.walk() when bumping to Python 3.12+
         for dirpath, _, filenames in os.walk(link.workshop_path):
@@ -1203,26 +1203,26 @@ class LinkMods(Command):
             dst_filenames = [dst_dir / name for name in filenames]
 
             try:
-                self._restore_dir(link, dst_dir, dry_run=dry_run)
+                self._restore_dir(link, dst_dir)
             except RuntimeError as e:
                 log.warning(e)
                 continue
 
             for src, dst in zip(src_filenames, dst_filenames):
                 try:
-                    self._restore_file_symlink(link, src, dst, dry_run=dry_run)
+                    self._restore_file_symlink(link, src, dst)
                 except RuntimeError as e:
                     log.warning(e)
 
-    def _remove_empty_dir(self, dst_dir: Path, *, dry_run: bool) -> None:
+    def _remove_empty_dir(self, dst_dir: Path) -> None:
         if next(dst_dir.iterdir(), None) is not None:
             return  # dir is not empty
 
         log.warning("Removing empty directory: %s", dst_dir)
-        if not dry_run:
+        if not self.dry_run:
             dst_dir.rmdir()
 
-    def _restore_dir(self, link: ModLink, dst_dir: Path, *, dry_run: bool) -> None:
+    def _restore_dir(self, link: ModLink, dst_dir: Path) -> None:
         if dst_dir.is_dir():
             # remove_broken_links(dst, dry_run=dry_run)
             return
@@ -1230,23 +1230,17 @@ class LinkMods(Command):
             raise RuntimeError(f"File conflict, cannot create directory: {dst_dir}")
 
         log.debug("MKDIR: %s", dst_dir.relative_to(link.mod_path.parent))
-        if not dry_run:
+        if not self.dry_run:
             dst_dir.mkdir()  # requires walk(topdown=True)
 
-    def _restore_file_symlink(
-        self,
-        link: ModLink,
-        src: Path,
-        dst: Path,
-        dry_run: bool,
-    ) -> None:
+    def _restore_file_symlink(self, link: ModLink, src: Path, dst: Path) -> None:
         if dst.is_symlink():
             return
         elif dst.exists():
             raise RuntimeError(f"File conflict, cannot create symlink: {dst}")
 
         log.debug("SYMLINK: %s", dst.relative_to(link.mod_path.parent))
-        if not dry_run:
+        if not self.dry_run:
             dst.symlink_to(src)
 
 
