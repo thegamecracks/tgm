@@ -743,6 +743,7 @@ class Install(Command):
                 self.config,
                 dry_run=self.dry_run,
                 fetch=False,
+                link_type=None,
                 prompt=False,
                 prune=False,
             ).invoke_with_items({item.id: item for item in items})
@@ -995,6 +996,7 @@ class LinkMods(Command):
 
     dry_run: bool
     fetch: bool
+    link_type: ModLinkType | None
     prompt: bool
     prune: bool
 
@@ -1040,6 +1042,7 @@ class LinkMods(Command):
             config,
             dry_run=args.dry_run,
             fetch=args.fetch,
+            link_type=None,
             prompt=args.prompt,
             prune=args.prune,
         )
@@ -1155,12 +1158,13 @@ class LinkMods(Command):
             a_links.extend(b_links)
 
     def _get_link_type(self) -> ModLinkType:
+        if self.link_type is not None:
+            return self.link_type
+
         # https://github.com/thegamecracks/tgm/issues/2
         # We only need symlink trees on Linux where we may have to rename addons.
         # On Windows, we can use a simple symlink.
-        if IS_WINDOWS:
-            return ModLinkType.DIRECTORY_SYMLINK
-        return ModLinkType.SYMLINK_TREE
+        return ModLinkType.DIRECTORY_SYMLINK if IS_WINDOWS else ModLinkType.SYMLINK_TREE
 
     def _create_symlink_tree(self, *, src: Path, dst: Path, item_id: int) -> None:
         def copy(src: str, dest: str) -> None:
@@ -1535,6 +1539,7 @@ class Update(Command):
                 self.config,
                 dry_run=self.dry_run,
                 fetch=False,
+                link_type=None,
                 prompt=False,
                 prune=False,
             ).invoke_with_items({item.id: item for item in outdated})

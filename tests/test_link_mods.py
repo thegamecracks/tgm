@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, assert_never
 
-import pytest
-from pytest import LogCaptureFixture, MonkeyPatch
+from pytest import LogCaptureFixture
 
 from tgm import Config, LinkMods, ModLinkType
 
@@ -116,42 +115,22 @@ def _assert_path(
         assert_never(expected)
 
 
-class SymlinkController:
-    def __init__(self, monkeypatch: MonkeyPatch) -> None:
-        self.monkeypatch = monkeypatch
-
-    def force_directory_symlinks(self) -> None:
-        self.monkeypatch.setattr(
-            LinkMods,
-            "_get_link_type",
-            lambda self: ModLinkType.DIRECTORY_SYMLINK,
-        )
-
-    def force_symlink_trees(self) -> None:
-        self.monkeypatch.setattr(
-            LinkMods,
-            "_get_link_type",
-            lambda self: ModLinkType.SYMLINK_TREE,
-        )
-
-
-@pytest.fixture
-def symlink_controller(monkeypatch: MonkeyPatch) -> SymlinkController:
-    return SymlinkController(monkeypatch)
-
-
 def test_link_mods_directory_symlink(
     config: Config,
     workshop: Workshop,
-    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
-    symlink_controller.force_directory_symlinks()
-
     item_id = 1234567890
     workshop_path = workshop.install_workshop_item(item_id)
 
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        prompt=False,
+        prune=True,
+    ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
     assert_file_structure(config.mod_dir, expected)
@@ -161,17 +140,21 @@ def test_link_mods_directory_symlink(
 def test_link_mods_directory_symlink_prune(
     config: Config,
     workshop: Workshop,
-    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
-    symlink_controller.force_directory_symlinks()
-
     expected: Tree
     config.mod_dir.joinpath("@first_mod").symlink_to(config.workshop_dir / "1")
     config.mod_dir.joinpath("@second_mod").symlink_to(config.workshop_dir / "2")
 
     # --no-prune
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=False).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
+        prompt=False,
+        prune=False,
+    ).invoke()
     expected = {
         "@first_mod": Symlink(target=config.workshop_dir / "1"),
         "@second_mod": Symlink(target=config.workshop_dir / "2"),
@@ -180,7 +163,14 @@ def test_link_mods_directory_symlink_prune(
     assert not caplog.messages
 
     # --prune
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=None,
+        prompt=False,
+        prune=True,
+    ).invoke()
     expected = {}
     assert_file_structure(config.mod_dir, expected)
     assert "Removing broken link: @first_mod" in caplog.messages
@@ -190,14 +180,18 @@ def test_link_mods_directory_symlink_prune(
 def test_link_mods_symlink_tree(
     config: Config,
     workshop: Workshop,
-    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
-    symlink_controller.force_symlink_trees()
-
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        prompt=False,
+        prune=True,
+    ).invoke()
     expected: Tree = {
         "addons": {
             "testaddon.pbo": Symlink(),
@@ -217,16 +211,20 @@ def test_link_mods_symlink_tree(
 def test_link_mods_symlink_tree_repair(
     config: Config,
     workshop: Workshop,
-    symlink_controller: SymlinkController,
     caplog: LogCaptureFixture,
 ) -> None:
-    symlink_controller.force_symlink_trees()
-
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
     mod_path = config.mod_dir / f"@{item_id}"
 
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=ModLinkType.SYMLINK_TREE,
+        prompt=False,
+        prune=True,
+    ).invoke()
 
     # Add a broken symlink, must be removed
     mod_path.joinpath("broken").symlink_to("broken-target")
@@ -244,7 +242,14 @@ def test_link_mods_symlink_tree_repair(
     mod_path.joinpath("mod.cpp").touch()
 
     # Re-running command should repair the symlink tree
-    LinkMods(config, dry_run=False, fetch=False, prompt=False, prune=True).invoke()
+    LinkMods(
+        config,
+        dry_run=False,
+        fetch=False,
+        link_type=None,
+        prompt=False,
+        prune=True,
+    ).invoke()
 
     expected: Tree = {
         "addons": {
