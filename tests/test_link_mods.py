@@ -205,7 +205,7 @@ def test_link_mods_directory_symlink_prune(
         config,
         dry_run=False,
         fetch=False,
-        link_type=None,
+        link_type=ModLinkType.DIRECTORY_SYMLINK,
         migrate=False,
         prompt=False,
         prune=True,
@@ -279,7 +279,7 @@ def test_link_mods_symlink_tree_repair(
         config,
         dry_run=False,
         fetch=False,
-        link_type=None,
+        link_type=ModLinkType.SYMLINK_TREE,
         migrate=False,
         prompt=False,
         prune=True,
@@ -291,10 +291,6 @@ def test_link_mods_symlink_tree_repair(
     expected["user-file"] = File()
     assert_symlink_tree_structure(config, item_id, expected)
 
-    assert caplog.messages[-4] == (
-        "1 linked mods are in an un-preferred format for for your platform.\n"
-        "Consider replacing them with 'link-mods --migrate directory-symlinks' (potentially destructive!)"
-    )
     assert caplog.messages[-3].startswith("Removing empty directory:")
     assert caplog.messages[-3].endswith("user-dir")
     assert caplog.messages[-2] == "Removing broken link: broken"
