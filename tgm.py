@@ -524,6 +524,7 @@ class FixMeta(Command):
     """
 
     dry_run: bool
+    _item_ids: Collection[int]
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -545,11 +546,14 @@ class FixMeta(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run)
+        return cls(config, dry_run=args.dry_run, _item_ids=())
 
     def invoke(self) -> None:
         for mod, link in self.find_mod_links().items():
             item_id = int(mod.name)
+            if self._item_ids and item_id not in self._item_ids:
+                continue
+
             name = (
                 f"{item_id:<10} ({link.name})" if link is not None else f"{item_id:<10}"
             )
@@ -721,7 +725,12 @@ class Install(Command):
             command.call()
 
         if self.fix:
-            LowercaseAddons(self.config, dry_run=self.dry_run).invoke()
+            item_ids = {item.id for item in items}
+            LowercaseAddons(
+                self.config,
+                dry_run=self.dry_run,
+                _item_ids=item_ids,
+            ).invoke()
             LinkMods(
                 self.config,
                 dry_run=self.dry_run,
@@ -729,8 +738,13 @@ class Install(Command):
                 prompt=False,
                 prune=False,
             ).invoke_with_items({item.id: item for item in items})
-            FixMeta(self.config, dry_run=self.dry_run).invoke()
-            LinkKeys(self.config, dry_run=self.dry_run, prune=True).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+            LinkKeys(
+                self.config,
+                dry_run=self.dry_run,
+                prune=True,
+                _item_ids=item_ids,
+            ).invoke()
 
 
 @dataclass(kw_only=True)
@@ -738,6 +752,7 @@ class LowercaseAddons(Command):
     """Lowercase addons in workshop mods for Arma 3 Linux compatibility."""
 
     dry_run: bool
+    _item_ids: Collection[int]
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -759,13 +774,16 @@ class LowercaseAddons(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run)
+        return cls(config, dry_run=args.dry_run, _item_ids=())
 
     def invoke(self) -> None:
         if IS_WINDOWS:
             return log.info("Skipping addon lowercasing on Windows")
 
-        for mod in self.list_installed_items().values():
+        for item_id, mod in self.list_installed_items().items():
+            if self._item_ids and item_id not in self._item_ids:
+                continue
+
             addons = self._find_addons_directory(mod)
             if addons is None:
                 log.warning("No addons directory found in %s", mod)
@@ -810,6 +828,7 @@ class LinkKeys(Command):
 
     dry_run: bool
     prune: bool
+    _item_ids: Collection[int]
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:
@@ -837,7 +856,7 @@ class LinkKeys(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        return cls(config, dry_run=args.dry_run, prune=args.prune)
+        return cls(config, dry_run=args.dry_run, prune=args.prune, _item_ids=())
 
     def invoke(self) -> None:
         if self.prune:
@@ -850,12 +869,15 @@ class LinkKeys(Command):
     def _find_keys(self) -> list[Path]:
         keys: dict[str, Path] = {}
 
-        for mod in self.find_mod_links().values():
-            if mod is None:
+        for mod, link in self.find_mod_links().items():
+            item_id = int(mod.name)
+            if link is None:
+                continue
+            if self._item_ids and item_id not in self._item_ids:
                 continue
 
-            self._find_keys_in_mod(keys, mod)
-            self._check_unsigned_addons(mod)
+            self._find_keys_in_mod(keys, link)
+            self._check_unsigned_addons(link)
 
         return sorted(keys.values())
 
@@ -1138,7 +1160,12 @@ class Remove(Command):
 
         if self.fix:
             FixACF(self.config, dry_run=self.dry_run, _item_ids=installed).invoke()
-            LinkKeys(self.config, dry_run=self.dry_run, prune=True).invoke()
+            LinkKeys(
+                self.config,
+                dry_run=self.dry_run,
+                prune=True,
+                _item_ids=installed,
+            ).invoke()
 
 
 @dataclass(kw_only=True)
@@ -1327,9 +1354,19 @@ class Update(Command):
             command.call()
 
         if self.fix:
-            LowercaseAddons(self.config, dry_run=self.dry_run).invoke()
-            FixMeta(self.config, dry_run=self.dry_run).invoke()
-            LinkKeys(self.config, dry_run=self.dry_run, prune=True).invoke()
+            item_ids = {item.id for item in outdated}
+            LowercaseAddons(
+                self.config,
+                dry_run=self.dry_run,
+                _item_ids=item_ids,
+            ).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+            LinkKeys(
+                self.config,
+                dry_run=self.dry_run,
+                prune=True,
+                _item_ids=item_ids,
+            ).invoke()
 
     def _is_outdated(self, item: FileDetails) -> bool:
         modified = self.item_modified_at(item.id)
