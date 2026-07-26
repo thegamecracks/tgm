@@ -1274,7 +1274,9 @@ class LinkMods(Command):
 
         metadata = SymlinkTreeMetadata(item_id=item_id)
         metadata_path = dst / ".tgm_symlink.json"
-        metadata_path.write_text(metadata.to_json(), "utf-8")
+        with metadata_path.open("w", encoding="utf-8") as f:
+            f.write(metadata.to_json())
+            f.write("\n")
 
     def _repair_symlink_trees(self, mod_links: ModLinks) -> None:
         trees = [
