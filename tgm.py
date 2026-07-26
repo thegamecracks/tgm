@@ -742,7 +742,7 @@ class Install(Command):
             command.call()
 
         if self.fix:
-            item_ids = {item.id for item in items}
+            details = {item.id: item for item in items}
             LinkMods(
                 self.config,
                 dry_run=self.dry_run,
@@ -751,19 +751,20 @@ class Install(Command):
                 migrate=True,
                 prompt=False,
                 prune=False,
-                _items={item.id: item for item in items},
+                _item_ids=details,
+                _details=details,
             ).invoke()
             LowercaseAddons(
                 self.config,
                 dry_run=self.dry_run,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
-            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=details).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
                 prune=True,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
 
 
@@ -1006,7 +1007,8 @@ class LinkMods(Command):
     migrate: bool
     prompt: bool
     prune: bool
-    _items: Mapping[int, FileDetails] | None
+    _item_ids: Collection[int] | None
+    _details: Mapping[int, FileDetails] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
@@ -1073,7 +1075,8 @@ class LinkMods(Command):
             migrate=migrate,
             prompt=args.prompt,
             prune=args.prune,
-            _items=None,
+            _item_ids=None,
+            _details=None,
         )
 
     def invoke(self) -> None:
@@ -1082,23 +1085,26 @@ class LinkMods(Command):
 
         mod_links = self._maybe_migrate_links()
         missing = self._find_missing_links(mod_links)
-        if self._items is not None:
+        if self._item_ids is not None:
             # Invoked by another command, skip logging if all links are present
-            items = self._items
             missing = [
                 workshop_path
                 for workshop_path in missing
-                if items.get(int(workshop_path.name)) is not None
+                if int(workshop_path.name) in self._item_ids
             ]
         elif not missing:
             self._repair_symlink_trees(mod_links)
             return log.info("No workshop mods need to be linked")
-        elif self.fetch:
+
+        if self.fetch:
+            assert self._details is None
             item_ids = [int(workshop_path.name) for workshop_path in missing]
             items = self.get_published_file_details(item_ids)
             items = {item.id: item for item in items}
+        elif self._details is not None:
+            items = self._details
         else:
-            items = {}
+            items: dict[int, FileDetails] = {}
 
         new_links = self._create_links(missing, items)
         self._merge_new_links(mod_links, new_links)
@@ -1109,7 +1115,7 @@ class LinkMods(Command):
 
         if not self.migrate:
             self._maybe_suggest_migration(mod_links)
-        elif self._items is None:
+        elif self._item_ids is None:
             # Migrate everything
             self._remove_links_in_place(mod_links)
         else:
@@ -1126,7 +1132,7 @@ class LinkMods(Command):
             for i, link in enumerate(links):
                 if link.type == preferred:
                     continue
-                elif self._items is not None and link.item_id not in self._items:
+                elif self._item_ids is not None and link.item_id not in self._item_ids:
                     # Invoked by another command, only migrate the requested items
                     continue
 
@@ -1630,7 +1636,7 @@ class Update(Command):
             command.call()
 
         if self.fix:
-            item_ids = {item.id for item in outdated}
+            details = {item.id: item for item in outdated}
             LinkMods(
                 self.config,
                 dry_run=self.dry_run,
@@ -1639,19 +1645,20 @@ class Update(Command):
                 migrate=True,
                 prompt=False,
                 prune=False,
-                _items={item.id: item for item in outdated},
+                _item_ids=details,
+                _details=details,
             ).invoke()
             LowercaseAddons(
                 self.config,
                 dry_run=self.dry_run,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
-            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=details).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
                 prune=True,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
 
     def _is_outdated(self, item: FileDetails) -> bool:

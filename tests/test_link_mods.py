@@ -165,7 +165,8 @@ def test_link_mods_directory_symlink(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -191,7 +192,8 @@ def test_link_mods_directory_symlink_prune(
         migrate=False,
         prompt=False,
         prune=False,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
     expected = {
         "@first_mod": Symlink(target=config.workshop_dir / "1"),
@@ -209,7 +211,8 @@ def test_link_mods_directory_symlink_prune(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
     expected = {}
     assert_file_structure(config.mod_dir, expected)
@@ -232,7 +235,8 @@ def test_link_mods_symlink_tree(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
     expected = create_default_symlink_tree()
     assert_symlink_tree_structure(config, item_id, expected)
@@ -256,7 +260,8 @@ def test_link_mods_symlink_tree_repair(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     # Add a broken symlink, must be removed
@@ -283,7 +288,8 @@ def test_link_mods_symlink_tree_repair(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected = create_default_symlink_tree()
@@ -315,7 +321,8 @@ def test_link_mods_suggest_migration_to_directory_symlinks(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected = create_default_symlink_tree()
@@ -331,7 +338,8 @@ def test_link_mods_suggest_migration_to_directory_symlinks(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     assert_symlink_tree_structure(config, item_id, expected)
@@ -358,7 +366,8 @@ def test_link_mods_suggest_migration_to_symlink_trees(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -374,7 +383,8 @@ def test_link_mods_suggest_migration_to_symlink_trees(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     assert_file_structure(config.mod_dir, expected)
@@ -401,7 +411,8 @@ def test_link_mods_migrate_to_directory_symlinks(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected = create_default_symlink_tree()
@@ -423,7 +434,8 @@ def test_link_mods_migrate_to_directory_symlinks(
         migrate=True,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -455,7 +467,8 @@ def test_link_mods_migrate_to_symlink_trees(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -477,7 +490,8 @@ def test_link_mods_migrate_to_symlink_trees(
         migrate=True,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected = create_default_symlink_tree()
@@ -509,7 +523,8 @@ def test_link_mods_migrate_dry_run(
         migrate=False,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     expected: Tree = {f"@{item_id}": Symlink(target=workshop_path)}
@@ -531,7 +546,8 @@ def test_link_mods_migrate_dry_run(
         migrate=True,
         prompt=False,
         prune=True,
-        _items=None,
+        _item_ids=None,
+        _details=None,
     ).invoke()
 
     assert_file_structure(config.mod_dir, expected)
@@ -563,7 +579,8 @@ def test_link_mods_migrate_noop(
             migrate=True,
             prompt=False,
             prune=True,
-            _items=None,
+            _item_ids=None,
+            _details=None,
         ).invoke()
 
     assert not caplog.messages
@@ -596,7 +613,8 @@ def test_link_mods_migrate_items_only(
         migrate=False,
         prompt=False,
         prune=True,
-        _items={item_id: item.details for item_id, item in installed.items()},
+        _item_ids=installed,
+        _details={item_id: item.details for item_id, item in installed.items()},
     ).invoke()
 
     expected: Tree = {
@@ -622,7 +640,8 @@ def test_link_mods_migrate_items_only(
         migrate=True,
         prompt=False,
         prune=True,
-        _items={2: installed[2].details},
+        _item_ids={2},
+        _details={2: installed[2].details},
     ).invoke()
 
     expected: Tree = {
