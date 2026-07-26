@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -227,6 +228,7 @@ def test_link_mods_symlink_tree(
 ) -> None:
     item_id = 1234567890
     workshop.install_workshop_item(item_id)
+
     LinkMods(
         config,
         dry_run=False,
@@ -238,9 +240,14 @@ def test_link_mods_symlink_tree(
         _item_ids=None,
         _details=None,
     ).invoke()
+
     expected = create_default_symlink_tree()
     assert_symlink_tree_structure(config, item_id, expected)
     assert not caplog.messages
+
+    metadata = config.mod_dir.joinpath(f"@{item_id}/.tgm_symlink.json").read_text()
+    expected = {"item_id": str(item_id)}
+    assert metadata == json.dumps(expected) + "\n"
 
 
 def test_link_mods_symlink_tree_repair(
