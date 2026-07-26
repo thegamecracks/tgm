@@ -158,6 +158,12 @@ TGM_MOD_DIR=      OR tgm.py --mod-dir ...
 TGM_KEY_DIR=      OR tgm.py --key-dir ...
 ```
 
+> [!NOTE]
+>
+> On Linux, `link-mods` will use symlink trees if possible so addons can be
+> lowercased without affecting the workshop directory, as this causes SteamCMD
+> to redownload files when updating workhop items.
+
 ### Fixes
 
 The following fixes and utilities are defined:

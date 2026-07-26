@@ -54,6 +54,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from http.client import HTTPResponse
 from pathlib import Path
 from string import Template
@@ -66,6 +67,7 @@ from typing import (
     NoReturn,
     Self,
     TypeAlias,
+    assert_never,
     overload,
 )
 
@@ -112,6 +114,7 @@ WORKSHOP_URL_PATTERN = re.compile(
 )
 WORKSHOP_URL_TEMPLATE = "https://steamcommunity.com/workshop/filedetails/?id={}"
 
+ModLinks: TypeAlias = "dict[Path, list[ModLink]]"
 SubParser: TypeAlias = "argparse._SubParsersAction[argparse.ArgumentParser]"
 
 log = logging.getLogger(__name__)
@@ -277,7 +280,7 @@ class Command(ABC):
             ignore_errors=self.config.ignore_api_errors,
         )
 
-    def find_mod_links(self) -> dict[Path, Path | None]:
+    def find_mod_links(self) -> ModLinks:
         return find_mod_links(
             mod_dir=self.config.mod_dir,
             workshop_dir=self.config.workshop_dir,
@@ -371,26 +374,26 @@ class Details(Command):
             details_list = self.get_published_file_details(installed)
             details = {item.id: item for item in details_list}
 
-        rows: list[tuple[int, str, Path, Path | None, FileDetails | None]] = []
+        rows: list[tuple[int, str, Path, list[ModLink], FileDetails | None]] = []
         for item_id, mod in installed.items():
-            link = mod_links[mod]
+            links = mod_links[mod]
             item = details.get(item_id)
             title = (
                 item.title
                 if item is not None
-                else link.name
-                if link is not None
+                else links[0].mod_path.name
+                if len(links) > 0
                 else str(item_id)
             )
-            rows.append((item_id, title, mod, link, item))
+            rows.append((item_id, title, mod, links, item))
 
         rows.sort(key=lambda t: (t[1].lower(), t[0]))
-        for item_id, title, mod, link, item in rows:
+        for item_id, title, mod, links, item in rows:
             self._show_item_details(
                 item_id=item_id,
                 title=title,
                 mod=mod,
-                link=link,
+                links=links,
                 item=details.get(item_id),
             )
 
@@ -400,9 +403,17 @@ class Details(Command):
         item_id: int,
         title: str,
         mod: Path,
-        link: Path | None,
+        links: list[ModLink],
         item: FileDetails | None,
     ) -> None:
+        def print_links() -> None:
+            if not links:
+                return print("    Symlink:         None")
+
+            for i, link in enumerate(links):
+                header = "Symlink:" if i == 0 else "        "
+                print(f"    {header}         {link.mod_path}")
+
         url = WORKSHOP_URL_TEMPLATE.format(item_id)
         modified_at = self.item_modified_at(item_id)
 
@@ -414,13 +425,13 @@ class Details(Command):
             print(f"    Last updated:    {item.updated_at.isoformat(' ')}")
             print(f"    File size:       {natural_bytes(item.size)}")
             print(f"    Location:        {mod}")
-            print(f"    Symlink:         {link}")
+            print_links()
         else:
             print(title)
             print(f"    Workshop URL:    {url}")
             print(f"    Downloaded:      {modified_at.isoformat(' ')}")
             print(f"    Location:        {mod}")
-            print(f"    Symlink:         {link}")
+            print_links()
 
 
 @dataclass(kw_only=True)
@@ -549,16 +560,18 @@ class FixMeta(Command):
         return cls(config, dry_run=args.dry_run, _item_ids=None)
 
     def invoke(self) -> None:
-        for mod, link in self.find_mod_links().items():
-            item_id = int(mod.name)
+        for workshop_path, links in self.find_mod_links().items():
+            item_id = int(workshop_path.name)
             if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
             name = (
-                f"{item_id:<10} ({link.name})" if link is not None else f"{item_id:<10}"
+                f"{item_id:<10} ({links[0].mod_path.name})"
+                if len(links) > 0
+                else f"{item_id:<10}"
             )
 
-            meta = mod / "meta.cpp"
+            meta = workshop_path / "meta.cpp"
             if not meta.exists():
                 log.warning("Missing meta.cpp in %s", name)
                 continue
@@ -634,7 +647,7 @@ class Help(Command):
 class Install(Command):
     """Install workshop mods and collections.
 
-    After installation, the lowercase, link-mods, fix-meta, and link-keys commands
+    After installation, the link-mods, lowercase, fix-meta, and link-keys commands
     are automatically invoked unless --no-fix is used.
 
     """
@@ -695,7 +708,11 @@ class Install(Command):
             log.warning("-a/--all is deprecated, use --force instead")
             skip_installed = False
 
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             dry_run=args.dry_run,
@@ -725,31 +742,40 @@ class Install(Command):
             command.call()
 
         if self.fix:
-            item_ids = {item.id for item in items}
-            LowercaseAddons(
-                self.config,
-                dry_run=self.dry_run,
-                _item_ids=item_ids,
-            ).invoke()
+            details = {item.id: item for item in items}
             LinkMods(
                 self.config,
                 dry_run=self.dry_run,
                 fetch=False,
+                link_type=None,
+                migrate=True,
                 prompt=False,
                 prune=False,
-            ).invoke_with_items({item.id: item for item in items})
-            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+                _item_ids=details,
+                _details=details,
+            ).invoke()
+            LowercaseAddons(
+                self.config,
+                dry_run=self.dry_run,
+                _item_ids=details,
+            ).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=details).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
                 prune=True,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
 
 
 @dataclass(kw_only=True)
 class LowercaseAddons(Command):
-    """Lowercase addons in workshop mods for Arma 3 Linux compatibility."""
+    """Lowercase addons in workshop mods for Arma 3 Linux compatibility.
+
+    This will only lowercase symlink trees, not files in the workshop directory.
+    A warning is generated if there are legacy directory symlinks.
+
+    """
 
     dry_run: bool
     _item_ids: Collection[int] | None
@@ -761,7 +787,7 @@ class LowercaseAddons(Command):
             aliases=["lw"],
             description=clean_doc(cls.__doc__),
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            help="Lowercase addons in workshop directory",
+            help="Lowercase addons in mod directory",
         )
         parser.add_argument(
             "-n",
@@ -780,19 +806,29 @@ class LowercaseAddons(Command):
         if IS_WINDOWS:
             return log.info("Skipping addon lowercasing on Windows")
 
-        for item_id, mod in self.list_installed_items().items():
+        for workshop_path, links in self.find_mod_links().items():
+            item_id = int(workshop_path.name)
             if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
-            addons = self._find_addons_directory(mod)
-            if addons is None:
-                log.warning("No addons directory found in %s", mod)
-                continue
+            for link in links:
+                self._handle_link(link)
 
-            self._iter_addons(addons)
+    def _handle_link(self, link: ModLink) -> None:
+        if link.type == ModLinkType.DIRECTORY_SYMLINK:
+            # TODO: add flag to restore legacy lowercase behaviour?
+            log.warning("Cannot lowercase legacy directory symlink: %s", link.mod_path)
+            return
+        elif link.type == ModLinkType.SYMLINK_TREE:
+            addons = self._find_addons_directory(link.mod_path)
+            if addons is not None:
+                self._iter_addons(addons)
+            else:
+                log.warning("No addons directory found in %s", link.mod_path)
+        else:
+            assert_never(link.type)
 
     def _find_addons_directory(self, mod: Path) -> Path | None:
-        workshop_dir = self.config.workshop_dir
         expected = mod / "addons"
 
         for path in mod.iterdir():
@@ -801,7 +837,7 @@ class LowercaseAddons(Command):
             elif path == expected:
                 return expected
 
-            print(f"RENAME: {expected.name:50} <= {path.relative_to(workshop_dir)}")
+            print(f"RENAME: {expected.name:50} <= {path.relative_to(mod.parent)}")
             if not self.dry_run:
                 path.rename(expected)
                 return expected
@@ -811,13 +847,12 @@ class LowercaseAddons(Command):
     def _iter_addons(self, addons: Path) -> None:
         types = ("*.pbo", "*.bisign")
 
-        workshop_dir = self.config.workshop_dir
         files = (p for t in types for p in addons.glob(t))
         files = ((old, old.with_name(old.name.lower())) for old in files)
         files = ((old, new) for old, new in files if old != new)
 
         for old, new in files:
-            print(f"RENAME: {new.name:50} <= {old.relative_to(workshop_dir)}")
+            print(f"RENAME: {new.name:50} <= {old.relative_to(addons.parent.parent)}")
             if not self.dry_run:
                 old.rename(new)
 
@@ -869,30 +904,35 @@ class LinkKeys(Command):
     def _find_keys(self) -> list[Path]:
         keys: dict[str, Path] = {}
 
-        for mod, link in self.find_mod_links().items():
-            item_id = int(mod.name)
-            if link is None:
-                continue
+        for workshop_path, links in self.find_mod_links().items():
+            item_id = int(workshop_path.name)
             if self._item_ids is not None and item_id not in self._item_ids:
                 continue
 
-            self._find_keys_in_mod(keys, link)
-            self._check_unsigned_addons(link)
+            for link in links:
+                self._find_keys_in_mod(keys, link)
+                self._check_unsigned_addons(link)
 
         return sorted(keys.values())
 
-    def _find_keys_in_mod(self, keys: dict[str, Path], mod: Path) -> None:
+    def _find_keys_in_mod(self, keys: dict[str, Path], link: ModLink) -> None:
         found = False
-        for key in mod.rglob("*.bikey"):
+        for key in link.mod_path.rglob("*.bikey"):
             found = True
 
-            if key.name not in keys:
+            if not key.exists():
+                continue  # broken symlink in symlink tree
+
+            existing = keys.get(key.name)
+            if existing is None:
                 keys[key.name] = key
+            elif existing.resolve() == key.resolve():
+                pass  # two mod links share the same key
             else:
                 self._check_conflict(key, keys[key.name])
 
         if not found:
-            log.warning("No keys found in mod: %s", mod.name)
+            log.warning("No keys found in mod: %s", link.mod_path.name)
 
     def _check_conflict(self, old: Path, new: Path) -> None:
         if old.read_bytes() == new.read_bytes():
@@ -922,12 +962,12 @@ class LinkKeys(Command):
             assert key.is_absolute()
             link.symlink_to(key)
 
-    def _check_unsigned_addons(self, mod: Path) -> None:
-        addons = mod / "addons"
+    def _check_unsigned_addons(self, link: ModLink) -> None:
+        addons = link.mod_path / "addons"
         if not addons.exists():
             return log.warning(
                 "Missing addons directory in mod: %s",
-                mod.relative_to(self.config.mod_dir),
+                link.mod_path.name,
             )
 
         pbos = list(addons.glob("*.pbo"))
@@ -941,12 +981,34 @@ class LinkKeys(Command):
 
 @dataclass(kw_only=True)
 class LinkMods(Command):
-    """Link each mod in the workshop directory to the server mods directory."""
+    """Link each mod in the workshop directory to the server mods directory.
+
+    On Windows, this creates a directory symlink for each mod.
+
+    On Linux, this creates symlink trees so that the 'lowercase' command
+    can lowercase symlinks instead of the actual files, allowing SteamCMD
+    to recognize file differences and download updates more efficiently.
+
+    If a legacy directory symlink is present, a symlink tree will not be created.
+
+    Existing symlink trees will be validated, removing broken symlinks,
+    empty directories, and restoring missing symlinks. Warnings will be
+    logged if a file conflict occurs.
+
+    Beware that using older versions of tgm.py, v1.x.x, can break symlink trees.
+    Usually re-running this command can repair it, but removing the entire tree
+    will allow rebuilding from scratch.
+
+    """
 
     dry_run: bool
     fetch: bool
+    link_type: ModLinkType | None
+    migrate: bool
     prompt: bool
     prune: bool
+    _item_ids: Collection[int] | None
+    _details: Mapping[int, FileDetails] | None
 
     @classmethod
     def register(cls, subparsers: SubParser) -> None:  # pragma: no cover
@@ -970,6 +1032,11 @@ class LinkMods(Command):
             help="Fetch workshop items to suggest titles (default: %(default)s)",
         )
         parser.add_argument(
+            "--migrate",
+            choices=("directory-symlinks", "symlink-trees"),
+            help="Migrate mod links to the given format (potentially destructive!)",
+        )
+        parser.add_argument(
             "--prompt",
             action=argparse.BooleanOptionalAction,
             default=False,
@@ -986,53 +1053,155 @@ class LinkMods(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
+
+        if args.migrate is None:
+            # By default, use the platform's preferred link type
+            link_type = None
+            migrate = False
+        elif args.migrate == "directory-symlinks":
+            link_type = ModLinkType.DIRECTORY_SYMLINK
+            migrate = True
+        elif args.migrate == "symlink-trees":
+            link_type = ModLinkType.SYMLINK_TREE
+            migrate = True
+        else:
+            raise ValueError(f"Unexpected value for --migrate: {args.migrate!r}")
+
         return cls(
             config,
             dry_run=args.dry_run,
             fetch=args.fetch,
+            link_type=link_type,
+            migrate=migrate,
             prompt=args.prompt,
             prune=args.prune,
+            _item_ids=None,
+            _details=None,
         )
 
     def invoke(self) -> None:
         if self.prune:
             remove_broken_links(self.config.mod_dir, dry_run=self.dry_run)
 
-        missing = self._find_missing_links()
-        if not missing:
+        mod_links = self._maybe_migrate_links()
+        missing = self._find_missing_links(mod_links)
+        if self._item_ids is not None:
+            # Invoked by another command, skip logging if all links are present
+            missing = [
+                workshop_path
+                for workshop_path in missing
+                if int(workshop_path.name) in self._item_ids
+            ]
+        elif not missing:
+            self._repair_symlink_trees(mod_links)
             return log.info("No workshop mods need to be linked")
 
-        items = {}
         if self.fetch:
-            item_ids = [int(mod.name) for mod in missing]
+            assert self._details is None
+            item_ids = [int(workshop_path.name) for workshop_path in missing]
             items = self.get_published_file_details(item_ids)
             items = {item.id: item for item in items}
+        elif self._details is not None:
+            items = self._details
+        else:
+            items: dict[int, FileDetails] = {}
 
-        self._create_links(missing, items)
+        new_links = self._create_links(missing, items)
+        self._merge_new_links(mod_links, new_links)
+        self._repair_symlink_trees(mod_links)
 
-    def invoke_with_items(self, items: Mapping[int, FileDetails | None]) -> None:
-        missing = self._find_missing_links()
-        missing = [mod for mod in missing if items.get(int(mod.name)) is not None]
-        self._create_links(missing, items)
+    def _maybe_migrate_links(self) -> ModLinks:
+        mod_links = self.find_mod_links()
+
+        if not self.migrate:
+            self._maybe_suggest_migration(mod_links)
+        elif self._item_ids is None:
+            # Migrate everything
+            self._remove_links_in_place(mod_links)
+        else:
+            # Partial migration, check the rest for suggestions
+            self._remove_links_in_place(mod_links)
+            self._maybe_suggest_migration(mod_links)
+
+        return mod_links
+
+    def _remove_links_in_place(self, mod_links: ModLinks) -> None:
+        preferred = self._get_link_type()
+        for links in mod_links.values():
+            to_remove: list[int] = []
+            for i, link in enumerate(links):
+                if link.type == preferred:
+                    continue
+                elif self._item_ids is not None and link.item_id not in self._item_ids:
+                    # Invoked by another command, only migrate the requested items
+                    continue
+
+                print("REMOVE:", link.mod_path.name)
+                to_remove.append(i)
+
+                if self.dry_run:
+                    pass
+                elif link.type == ModLinkType.DIRECTORY_SYMLINK:
+                    link.mod_path.unlink()
+                elif link.type == ModLinkType.SYMLINK_TREE:
+                    shutil.rmtree(link.mod_path)
+                else:
+                    assert_never(link.type)
+
+            for i in reversed(to_remove):
+                del links[i]
+
+    def _maybe_suggest_migration(self, mod_links: ModLinks) -> None:
+        preferred = self._get_link_type()
+        outdated = [
+            link
+            for links in mod_links.values()
+            for link in links
+            if link.type != preferred
+        ]
+        if len(outdated) < 1:
+            return
+
+        for link in outdated:
+            log.debug("Outdated link type: %s", link.mod_path.name)
+
+        if preferred == ModLinkType.DIRECTORY_SYMLINK:
+            choice = "directory-symlinks"
+        elif preferred == ModLinkType.SYMLINK_TREE:
+            choice = "symlink-trees"
+        else:
+            assert_never(preferred)
+
+        log.warning(
+            "%d linked mods are in an un-preferred format for for your platform.\n"
+            "Consider replacing them with 'link-mods --migrate %s' "
+            "(potentially destructive!)",
+            len(outdated),
+            choice,
+        )
 
     def _create_links(
         self,
         missing: Collection[Path],
-        items: Mapping[int, FileDetails | None],
-    ) -> None:
-        for mod in missing:
-            id = int(mod.name)
+        items: Mapping[int, FileDetails],
+    ) -> ModLinks:
+        new_links: ModLinks = {}
+        for workshop_path in missing:
+            id = int(workshop_path.name)
             item = items.get(id)
-            self._create_link(mod, item=item)
+            new_links[workshop_path] = [self._create_link(workshop_path, item=item)]
+        return new_links
 
-    def _find_missing_links(self) -> list[Path]:
-        mod_links = self.find_mod_links()
-        missing = [mod for mod, link in mod_links.items() if link is None]
-        return missing
+    def _find_missing_links(self, mod_links: ModLinks) -> list[Path]:
+        return [
+            workshop_path
+            for workshop_path, links in mod_links.items()
+            if len(links) < 1
+        ]
 
-    def _create_link(self, mod: Path, item: FileDetails | None) -> None:
-        item_id = int(mod.name)
-        title = item.title if item is not None else mod.name
+    def _create_link(self, workshop_path: Path, item: FileDetails | None) -> ModLink:
+        item_id = int(workshop_path.name)
+        title = item.title if item is not None else workshop_path.name
         link_name = self._normalize_name(title)
 
         if self.prompt:
@@ -1043,14 +1212,28 @@ class LinkMods(Command):
             link_name = overwrite or link_name
 
         if not link_name:
-            raise CommandError(f"No name available for mod: {mod}")
+            raise CommandError(f"No name available for mod: {workshop_path}")
 
         link = self._maybe_enumerate_link(self.config.mod_dir / link_name)
 
-        print(f"LINK: {link.name:50} <= {mod.relative_to(self.config.workshop_dir)}")
-        if not self.dry_run:
-            assert mod.is_absolute()
-            link.symlink_to(mod, target_is_directory=True)
+        print(f"LINK: {link.name:50} <= {workshop_path.name}")
+        link_type = self._get_link_type()
+        if self.dry_run:
+            pass
+        elif link_type == ModLinkType.DIRECTORY_SYMLINK:
+            assert workshop_path.is_absolute()
+            link.symlink_to(workshop_path, target_is_directory=True)
+        elif link_type == ModLinkType.SYMLINK_TREE:
+            self._create_symlink_tree(src=workshop_path, dst=link, item_id=item_id)
+        else:
+            assert_never(link_type)
+
+        return ModLink(
+            type=link_type,
+            item_id=item_id,
+            mod_path=link,
+            workshop_path=workshop_path,
+        )
 
     @staticmethod
     def _normalize_name(name: str) -> str:
@@ -1068,6 +1251,99 @@ class LinkMods(Command):
             n += 1
             link = link.with_name(f"{name}_{n}")
         return link
+
+    def _merge_new_links(self, a: ModLinks, b: ModLinks) -> None:
+        for workshop_path, b_links in b.items():
+            a_links = a.setdefault(workshop_path, [])
+            a_links.extend(b_links)
+
+    def _get_link_type(self) -> ModLinkType:
+        if self.link_type is not None:
+            return self.link_type
+
+        # https://github.com/thegamecracks/tgm/issues/2
+        # We only need symlink trees on Linux where we may have to rename addons.
+        # On Windows, we can use a simple symlink.
+        return ModLinkType.DIRECTORY_SYMLINK if IS_WINDOWS else ModLinkType.SYMLINK_TREE
+
+    def _create_symlink_tree(self, *, src: Path, dst: Path, item_id: int) -> None:
+        def copy(src: str, dest: str) -> None:
+            Path(dest).symlink_to(src)
+
+        shutil.copytree(src, dst, copy_function=copy)
+
+        metadata = SymlinkTreeMetadata(item_id=item_id)
+        metadata_path = dst / ".tgm_symlink.json"
+        with metadata_path.open("w", encoding="utf-8") as f:
+            f.write(metadata.to_json())
+            f.write("\n")
+
+    def _repair_symlink_trees(self, mod_links: ModLinks) -> None:
+        trees = [
+            link
+            for links in mod_links.values()
+            for link in links
+            if link.type == ModLinkType.SYMLINK_TREE
+        ]
+        for link in trees:
+            self._repair_symlink_tree(link)
+
+    def _repair_symlink_tree(self, link: ModLink) -> None:
+        """Recursively remove any broken symlinks and restore missing symlinks."""
+        assert link.type == ModLinkType.SYMLINK_TREE
+
+        for dirpath, _, _ in os.walk(link.mod_path, topdown=False):
+            dst_dir = Path(dirpath)
+            remove_broken_links(dst_dir, dry_run=self.dry_run)
+            self._remove_empty_dir(dst_dir)
+
+        # TODO: replace with Path.walk() when bumping to Python 3.12+
+        for dirpath, _, filenames in os.walk(link.workshop_path):
+            src_dir = Path(dirpath)
+            dst_dir = link.mod_path / (src_dir.relative_to(link.workshop_path))
+            src_filenames = [src_dir / name for name in filenames]
+            dst_filenames = [dst_dir / name for name in filenames]
+
+            try:
+                self._restore_dir(link, dst_dir)
+            except RuntimeError as e:
+                log.warning(e)
+                continue
+
+            for src, dst in zip(src_filenames, dst_filenames):
+                try:
+                    self._restore_file_symlink(link, src, dst)
+                except RuntimeError as e:
+                    log.warning(e)
+
+    def _remove_empty_dir(self, dst_dir: Path) -> None:
+        if next(dst_dir.iterdir(), None) is not None:
+            return  # dir is not empty
+
+        log.warning("Removing empty directory: %s", dst_dir)
+        if not self.dry_run:
+            dst_dir.rmdir()
+
+    def _restore_dir(self, link: ModLink, dst_dir: Path) -> None:
+        if dst_dir.is_dir():
+            # remove_broken_links(dst, dry_run=dry_run)
+            return
+        elif dst_dir.exists() or dst_dir.is_symlink():
+            raise RuntimeError(f"File conflict, cannot create directory: {dst_dir}")
+
+        log.debug("MKDIR: %s", dst_dir.relative_to(link.mod_path.parent))
+        if not self.dry_run:
+            dst_dir.mkdir()  # requires walk(topdown=True)
+
+    def _restore_file_symlink(self, link: ModLink, src: Path, dst: Path) -> None:
+        if dst.is_symlink():
+            return
+        elif dst.exists():
+            raise RuntimeError(f"File conflict, cannot create symlink: {dst}")
+
+        log.debug("SYMLINK: %s", dst.relative_to(link.mod_path.parent))
+        if not self.dry_run:
+            dst.symlink_to(src)
 
 
 @dataclass(kw_only=True)
@@ -1122,7 +1398,11 @@ class Remove(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             dry_run=args.dry_run,
@@ -1141,14 +1421,14 @@ class Remove(Command):
 
         installed: dict[int, Path] = {}
         for item_id, item in items.items():
-            mod = self.config.workshop_dir / str(item_id)
-            if mod.is_dir():
-                installed[item_id] = mod
+            workshop_path = self.config.workshop_dir / str(item_id)
+            if workshop_path.is_dir():
+                installed[item_id] = workshop_path
 
         if not installed:
             return log.info("No workshop mods need to be removed")
 
-        for item_id, mod in installed.items():
+        for item_id, workshop_path in installed.items():
             item = items.get(item_id)
             if item is not None:
                 print(f"REMOVE: {item_id:<10} ({item.title})")
@@ -1156,10 +1436,23 @@ class Remove(Command):
                 print(f"REMOVE: {item_id:<10}")
 
             if not self.dry_run:
-                shutil.rmtree(mod)
+                shutil.rmtree(workshop_path)
 
         if self.fix:
             FixACF(self.config, dry_run=self.dry_run, _item_ids=installed).invoke()
+            # # FIXME: cannot repair symlink trees after removal,
+            # #        as find_mod_links() will only return installed mods
+            # LinkMods(
+            #     self.config,
+            #     dry_run=self.dry_run,
+            #     fetch=False,
+            #     link_type=None,
+            #     migrate=False,
+            #     prompt=False,
+            #     prune=False,
+            #     _item_ids=installed,"utf-8"
+            #     _details=None,
+            # ).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
@@ -1257,7 +1550,7 @@ class SelfUpdate(Command):
 class Update(Command):
     """Check and update workshop mods based on their modification time.
 
-    After updating, the lowercase, fix-meta, and link-keys commands
+    After updating, the link-mods, lowercase, fix-meta, and link-keys commands
     are automatically invoked unless --no-fix is used.
 
     """
@@ -1311,7 +1604,11 @@ class Update(Command):
     @classmethod
     def from_config(cls, config: Config) -> Self:
         args = config.args
-        item_ids = parse_item_ids(args.mods, mod_dir=config.mod_dir)
+        item_ids = parse_item_ids(
+            args.mods,
+            mod_dir=config.mod_dir,
+            workshop_dir=config.workshop_dir,
+        )
         return cls(
             config,
             all=args.all,
@@ -1354,18 +1651,29 @@ class Update(Command):
             command.call()
 
         if self.fix:
-            item_ids = {item.id for item in outdated}
+            details = {item.id: item for item in outdated}
+            LinkMods(
+                self.config,
+                dry_run=self.dry_run,
+                fetch=False,
+                link_type=None,
+                migrate=True,
+                prompt=False,
+                prune=False,
+                _item_ids=details,
+                _details=details,
+            ).invoke()
             LowercaseAddons(
                 self.config,
                 dry_run=self.dry_run,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
-            FixMeta(self.config, dry_run=self.dry_run, _item_ids=item_ids).invoke()
+            FixMeta(self.config, dry_run=self.dry_run, _item_ids=details).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
                 prune=True,
-                _item_ids=item_ids,
+                _item_ids=details,
             ).invoke()
 
     def _is_outdated(self, item: FileDetails) -> bool:
@@ -1426,6 +1734,81 @@ class FileDetails:
             updated_at=updated_at,
             size=int(data["file_size"]),
             tags=[Tag.from_dict(tag) for tag in data["tags"]],
+        )
+
+
+@dataclass(kw_only=True)
+class SymlinkTreeMetadata:
+    """The data format used for .tgm_symlink.json files in symlink trees."""
+
+    item_id: int
+
+    @classmethod
+    def from_json(cls, content: str, /) -> Self:
+        data = json.loads(content)  # JSONDecodeError
+        return cls(item_id=int(data["item_id"]))  # KeyError, ValueError
+
+    def to_json(self) -> str:
+        data = {"item_id": str(self.item_id)}
+        return json.dumps(data)
+
+
+class ModLinkType(Enum):
+    DIRECTORY_SYMLINK = auto()
+    SYMLINK_TREE = auto()
+
+
+@dataclass(kw_only=True)
+class ModLink:
+    """Represents a link in the mod directory."""
+
+    type: ModLinkType
+    item_id: int
+    mod_path: Path
+    workshop_path: Path
+
+    @classmethod
+    def from_path(cls, path: Path, *, workshop_dir: Path) -> Self:
+        """Attempt to parse a path as a directory symlink or a symlink tree.
+
+        :raises ModLinkError: the path is not a valid mod link.
+
+        """
+        assert workshop_dir.is_absolute(), "workshop_dir must be absolute"
+
+        resolved = path.resolve()
+        if resolved.parent == workshop_dir:
+            try:
+                item_id = int(resolved.name)
+            except ValueError:
+                raise ModLinkError("Cannot parse item ID from directory name") from None
+
+            return cls(
+                type=ModLinkType.DIRECTORY_SYMLINK,
+                item_id=item_id,
+                mod_path=path,
+                workshop_path=resolved,
+            )
+
+        # Not a directory symlink, look for our symlink tree metadata
+        metadata_path = path / ".tgm_symlink.json"
+
+        try:
+            metadata = metadata_path.read_text("utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            raise ModLinkError("Cannot read .tgm_symlink.json file") from e
+
+        try:
+            metadata = SymlinkTreeMetadata.from_json(metadata)
+        except (KeyError, ValueError) as e:
+            # TODO: can we repair malformed .tgm_symlink.json in LinkMods?
+            raise ModLinkError(".tgm_symlink.json is malformed") from e
+
+        return cls(
+            type=ModLinkType.SYMLINK_TREE,
+            item_id=metadata.item_id,
+            mod_path=path,
+            workshop_path=workshop_dir / str(metadata.item_id),
         )
 
 
@@ -1579,6 +1962,10 @@ class DetailsError(CommandError):
 
 class HTTPError(CommandError):
     """Raised when an error occurs with an HTTP request."""
+
+
+class ModLinkError(CommandError):
+    """Raised when an error occurs with parsing mod links."""
 
 
 class SteamNotFoundError(CommandError):
@@ -1760,18 +2147,31 @@ def expand_collection_file_details(
     return ret
 
 
-def find_mod_links(*, mod_dir: Path, workshop_dir: Path) -> dict[Path, Path | None]:
-    mod_links: dict[Path, Path | None] = {}
+def find_mod_links(*, mod_dir: Path, workshop_dir: Path) -> ModLinks:
+    mod_links: ModLinks = {}
 
-    for mod in list_installed_items(workshop_dir=workshop_dir).values():
-        mod_links[mod.resolve()] = None
+    for path in list_installed_items(workshop_dir=workshop_dir).values():
+        mod_links[path.resolve()] = []
 
-    for link in mod_dir.iterdir():
-        resolved = link.resolve()
-        if resolved not in mod_links:
+    for path in mod_dir.iterdir():
+        try:
+            link = ModLink.from_path(path, workshop_dir=workshop_dir)
+        except ModLinkError as e:
+            log.debug("Failed to parse %s as mod link: %s", path, e)
             continue
 
-        mod_links[resolved] = link
+        links = mod_links.get(link.workshop_path)
+        if links is not None:  # if None, link points to an uninstalled mod
+            links.append(link)
+
+    # If there is a mix of directory symlinks and symlink trees for the same mod,
+    # possibly from running an older version of tgm.py, ignore directory symlinks.
+    for workshop_path, links in mod_links.items():
+        unique_types = {link.type for link in links}
+        if len(unique_types) > 1:
+            mod_links[workshop_path] = [
+                link for link in links if link.type == ModLinkType.SYMLINK_TREE
+            ]
 
     return mod_links
 
@@ -1872,8 +2272,8 @@ def http_post(url: str, data: dict[str, object]) -> Iterator[HTTPResponse]:
 
 
 def item_modified_at(item_id: int, *, workshop_dir: Path) -> datetime.datetime:
-    mod = workshop_dir / str(item_id)
-    timestamp = int(mod.stat().st_mtime)
+    workshop_path = workshop_dir / str(item_id)
+    timestamp = int(workshop_path.stat().st_mtime)
     return datetime.datetime.fromtimestamp(timestamp).astimezone()
 
 
@@ -1882,11 +2282,11 @@ def list_installed_items(*, workshop_dir: Path) -> dict[int, Path]:
     # some heuristics to filter them out. Empty directories might have
     # been formerly installed mods that the Steam client didn't clean up.
     return {
-        int(mod.name): mod
-        for mod in workshop_dir.iterdir()
-        if any(mod.iterdir())
-        and not (mod / "composition.sqe").exists()
-        and not any(mod.glob("*_legacy.bin"))
+        int(workshop_path.name): workshop_path
+        for workshop_path in workshop_dir.iterdir()
+        if any(workshop_path.iterdir())
+        and not (workshop_path / "composition.sqe").exists()
+        and not any(workshop_path.glob("*_legacy.bin"))
     }
 
 
@@ -1900,7 +2300,7 @@ def natural_bytes(n: int) -> str:
     return f"{n / 1e9:.3f}GB"
 
 
-def parse_item_id(s: str, *, mod_dir: Path) -> int:
+def parse_item_id(s: str, *, mod_dir: Path, workshop_dir: Path) -> int:
     try:
         return int(s)
     except ValueError:
@@ -1912,22 +2312,27 @@ def parse_item_id(s: str, *, mod_dir: Path) -> int:
     else:
         log.debug("Could not parse %r as workshop URL", s)
 
-    link = mod_dir / s
-    mod = link.resolve()
     try:
-        return int(mod.name)
-    except ValueError:
-        log.debug("Could not parse %r as symlink", s)
+        link = ModLink.from_path(mod_dir / s, workshop_dir=workshop_dir)
+    except ModLinkError:
+        log.debug("Could not parse %r as symlink", s, exc_info=True)
+    else:
+        return link.item_id
 
     raise ValueError(f"Cannot parse item ID: {s}")
 
 
-def parse_item_ids(args: Iterable[str], *, mod_dir: Path) -> list[int]:
+def parse_item_ids(
+    args: Iterable[str],
+    *,
+    mod_dir: Path,
+    workshop_dir: Path,
+) -> list[int]:
     item_ids: dict[int, None] = {}  # Retain insertion order
 
     for x in args:
         with suppress(ValueError):
-            item_id = parse_item_id(x, mod_dir=mod_dir)
+            item_id = parse_item_id(x, mod_dir=mod_dir, workshop_dir=workshop_dir)
             item_ids[item_id] = None
             continue
 
