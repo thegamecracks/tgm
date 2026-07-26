@@ -1438,6 +1438,19 @@ class Remove(Command):
 
         if self.fix:
             FixACF(self.config, dry_run=self.dry_run, _item_ids=installed).invoke()
+            # # FIXME: cannot repair symlink trees after removal,
+            # #        as find_mod_links() will only return installed mods
+            # LinkMods(
+            #     self.config,
+            #     dry_run=self.dry_run,
+            #     fetch=False,
+            #     link_type=None,
+            #     migrate=False,
+            #     prompt=False,
+            #     prune=False,
+            #     _item_ids=installed,"utf-8"
+            #     _details=None,
+            # ).invoke()
             LinkKeys(
                 self.config,
                 dry_run=self.dry_run,
