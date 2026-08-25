@@ -4,7 +4,7 @@
 
 [project]
 name = "tgm.py"
-version = "1.0.1"
+version = "1.1.0"
 description = "A zero-dependency, single-file workshop mod manager CLI for Arma 3."
 readme = "README.md"
 requires-python = ">=3.11"
