@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -73,7 +73,7 @@ class FakeRelease:
         monkeypatch.setattr(SelfUpdate, "_save_to_file", self.save_mock)
 
     @contextmanager
-    def _http_get(self, url: str) -> Iterator[MagicMock]:
+    def _http_get(self, url: str) -> Generator[MagicMock]:
         assert url == SelfUpdate._download_url
         yield self.response_mock
 

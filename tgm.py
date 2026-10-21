@@ -51,7 +51,7 @@ import textwrap
 import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection, Generator, Iterable, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from http.client import HTTPResponse
@@ -1847,7 +1847,7 @@ def get_published_file_details(
 
 
 @contextmanager
-def http_get(url: str) -> Iterator[HTTPResponse]:
+def http_get(url: str) -> Generator[HTTPResponse]:
     headers = {}
     request = urllib.request.Request(url, headers=headers)
     log.debug("%s %s", request.get_method(), request.full_url)
@@ -1857,7 +1857,7 @@ def http_get(url: str) -> Iterator[HTTPResponse]:
 
 
 @contextmanager
-def http_post(url: str, data: dict[str, object]) -> Iterator[HTTPResponse]:
+def http_post(url: str, data: dict[str, object]) -> Generator[HTTPResponse]:
     request = urllib.request.Request(
         url,
         data=urllib.parse.urlencode(data).encode(),

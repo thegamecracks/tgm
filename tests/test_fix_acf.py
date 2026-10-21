@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.resources
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from io import StringIO
 from typing import IO, TYPE_CHECKING
@@ -32,7 +32,7 @@ class FakeACF:
     # Technically this shouldn't be a context manager,
     # but we need to block file closing to inspect its contents
     @contextmanager
-    def open(self, mode: str = "r", *, encoding: str = "") -> Iterator[IO[str]]:
+    def open(self, mode: str = "r", *, encoding: str = "") -> Generator[IO[str]]:
         if self._deleted:
             raise FileNotFoundError
         elif mode == "r":
